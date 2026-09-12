@@ -12,3 +12,40 @@ package refresh
 
 
 
+import (
+	"github.com/dexisback/gheppo/internal/cache"
+)
+
+
+//mayberefresh checks whether the cache needs refreshing and if it needs -> start a detached background refreshing process
+func MaybeRefresh() error {
+	summary, ok := cache.Load()
+
+	if !ok || summary == nil {
+		return nil
+	}
+
+	if !cache.IsStale(summary) {
+		return nil
+	}
+
+	release, acquired := cache.TryAcquireRefreshLock()
+
+	if !acquired {
+		return nil
+	}
+
+	if err := spawnDetachedRefresh(); err != nil {
+		release()
+		return err
+	}
+
+	// Ownership of the lock is intentionally transferred to the
+	// detached refresh process.
+	return nil
+}
+
+//note: Do not call release() after successful spawning.
+// Otherwise the whole point of the cross-process lock disappears: another terminal could immediately start another refresh while the detached child is still fetching.
+
+

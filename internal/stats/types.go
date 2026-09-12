@@ -12,7 +12,8 @@ type Summary struct {
 	Total    int 
 	CurrentStreak   int 
 	LongestStreak   int 
-
+	FetchedAt     time.Time 
+	
 	Grid [][]Cell    //grid is indexed as [week][weekday]
 }
 

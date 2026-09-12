@@ -1,16 +1,15 @@
-package cache 
-
+package cache
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"time"
 
-
 	"github.com/dexisback/gheppo/internal/stats"
 )
-
 
 const (
 	staleAfter = 6 * time.Hour
@@ -21,15 +20,23 @@ const (
 	lockFileName  = "refresh.lock"
 )
 
-
-type cachedSummary struct {
-	*stats.Summary    //contains the summary and the time it was fetched at 
-	FetchedAt time.Time `json:"fetchedAt"`
+// cachedData contains the cached summary and the time it was fetched at.
+// We keep these as explicit fields instead of embedding Summary,
+// so the JSON structure is clear and unambiguous.
+type cachedData struct {
+	Summary   *stats.Summary `json:"summary"`
+	FetchedAt time.Time      `json:"fetchedAt"`
 }
 
+// refreshLock represents ownership of the refresh lock.
+// Each process that successfully acquires the lock gets a unique token.
+// This prevents an old process from accidentally deleting a newer process's lock.
+type refreshLock struct {
+	Token     string    `json:"token"`
+	CreatedAt time.Time `json:"createdAt"`
+}
 
-
-
+// cacheDir returns Gheppo's cache directory, creating it if necessary.
 func cacheDir() (string, error) {
 	dir, err := os.UserCacheDir()
 	if err != nil {
@@ -45,8 +52,7 @@ func cacheDir() (string, error) {
 	return dir, nil
 }
 
-
-//Load reads the cached summary. ok is false when no cache exists yet
+// Load reads the cached summary. ok is false when no valid cache exists yet.
 func Load() (*stats.Summary, bool) {
 	dir, err := cacheDir()
 	if err != nil {
@@ -64,7 +70,7 @@ func Load() (*stats.Summary, bool) {
 		return nil, false
 	}
 
-	var cached cachedSummary
+	var cached cachedData
 
 	if err := json.Unmarshal(data, &cached); err != nil {
 		return nil, false
@@ -74,13 +80,16 @@ func Load() (*stats.Summary, bool) {
 		return nil, false
 	}
 
+	// Restore the cache's fetched timestamp into the summary.
 	cached.Summary.FetchedAt = cached.FetchedAt
 
 	return cached.Summary, true
 }
 
-
-//save automatically writes the summary to the cache . this data is first written to a temperory file and then renamed over the existing cache file. both files live in the same dir, so the rename is ez and atomic
+// Save automatically writes the summary to the cache.
+// This data is first written to a temporary file and then renamed
+// over the existing cache file. Both files live in the same dir,
+// so the rename is atomic.
 func Save(s *stats.Summary) error {
 	if s == nil {
 		return os.ErrInvalid
@@ -91,9 +100,14 @@ func Save(s *stats.Summary) error {
 		return err
 	}
 
-	cached := cachedSummary{
+	fetchedAt := time.Now()
+
+	// Keep the in-memory summary and the cache timestamp in sync.
+	s.FetchedAt = fetchedAt
+
+	cached := cachedData{
 		Summary:   s,
-		FetchedAt: time.Now(),
+		FetchedAt: fetchedAt,
 	}
 
 	data, err := json.Marshal(cached)
@@ -116,8 +130,7 @@ func Save(s *stats.Summary) error {
 	return nil
 }
 
-
-//isStale reports whether the cached data is older than the refresh threshold and returns time by how much
+// IsStale reports whether the cached data is older than the refresh threshold.
 func IsStale(s *stats.Summary) bool {
 	if s == nil {
 		return true
@@ -126,9 +139,14 @@ func IsStale(s *stats.Summary) bool {
 	return time.Since(s.FetchedAt) > staleAfter
 }
 
-//tryacquirerefreshlock attempts to acquire the cross-process refresh lock.
-//release must be called by whoever successfully acquired the lock
-//NOTE: acquired is false when another process succesfully alr owns the lock
+// TryAcquireRefreshLock attempts to acquire the cross-process refresh lock.
+//
+// release must be called by whoever successfully acquired the lock.
+//
+// acquired is false when another process successfully already owns the lock.
+//
+// Each successful lock acquisition gets a unique token so that only
+// the process that owns the lock can release it.
 func TryAcquireRefreshLock() (release func(), acquired bool) {
 	dir, err := cacheDir()
 	if err != nil {
@@ -144,7 +162,24 @@ func TryAcquireRefreshLock() (release func(), acquired bool) {
 		}
 	}
 
+	// Generate a unique token that identifies this lock owner.
+	token, err := generateLockToken()
+	if err != nil {
+		return func() {}, false
+	}
+
+	lock := refreshLock{
+		Token:     token,
+		CreatedAt: time.Now(),
+	}
+
+	data, err := json.Marshal(lock)
+	if err != nil {
+		return func() {}, false
+	}
+
 	// O_EXCL makes creation atomic across processes.
+	// Only one process can successfully create the lock file.
 	file, err := os.OpenFile(
 		lockPath,
 		os.O_CREATE|os.O_EXCL|os.O_WRONLY,
@@ -155,24 +190,65 @@ func TryAcquireRefreshLock() (release func(), acquired bool) {
 		return func() {}, false
 	}
 
-	file.Close()
+	// Write this process's ownership information into the lock.
+	if _, err := file.Write(data); err != nil {
+		file.Close()
+		_ = os.Remove(lockPath)
+		return func() {}, false
+	}
 
+	if err := file.Close(); err != nil {
+		_ = os.Remove(lockPath)
+		return func() {}, false
+	}
+
+	// release only removes the lock if this process still owns it.
 	release = func() {
+		data, err := os.ReadFile(lockPath)
+		if err != nil {
+			return
+		}
+
+		var current refreshLock
+
+		if err := json.Unmarshal(data, &current); err != nil {
+			return
+		}
+
+		// If the token doesn't match, another process owns this lock now.
+		// Do not remove it.
+		if current.Token != token {
+			return
+		}
+
 		_ = os.Remove(lockPath)
 	}
 
 	return release, true
 }
 
-
-func ReleaseRefreshLock(){
+// ReleaseRefreshLock removes the refresh lock.
+//
+// This is used by the detached background sync process.
+func ReleaseRefreshLock() {
 	dir, err := cacheDir()
 	if err != nil {
 		return
 	}
+
 	lockPath := filepath.Join(dir, lockFileName)
 
 	_ = os.Remove(lockPath)
 }
 
+// generateLockToken creates a random token used to identify
+// the process that successfully acquired the refresh lock.
+func generateLockToken() (string, error) {
+	bytes := make([]byte, 16)
 
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(bytes), nil
+}

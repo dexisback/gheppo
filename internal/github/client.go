@@ -179,9 +179,9 @@ type graphQLData struct {
 	User   *githubUser    `json:"user"`
 }
 
-type githubUser  struct {
-	Login   string  `json:"login"`
-	ContributionsCollection      contributionsCollection    `json:"contributionCollection"`
+type githubUser struct {
+	Login                  string                  `json:"login"`
+	ContributionsCollection contributionsCollection `json:"contributionsCollection"`
 }
 
 type contributionsCollection struct {

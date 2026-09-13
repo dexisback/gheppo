@@ -4,6 +4,13 @@ import (
 	"github.com/dexisback/gheppo/internal/cache"
 )
 
+
+var spawnRefresh = spawnDetachedRefresh
+
+	
+ 
+
+
 // MaybeRefresh checks whether the cached data is stale and,
 // if so, attempts to start a detached background refresh.
 //
@@ -30,7 +37,7 @@ func MaybeRefresh() error {
 
 	// Start the detached background sync process and pass it
 	// the token belonging to the lock we just acquired.
-	if err := spawnDetachedRefresh(lockToken); err != nil {
+	if err :=spawnRefresh(lockToken); err != nil {
 		// If the child process could not be started, we still own
 		// the lock, so release it immediately.
 		release()

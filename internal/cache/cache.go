@@ -36,9 +36,16 @@ type refreshLock struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-// cacheDir returns Gheppo's cache directory, creating it if necessary.
+
+//new:
+var cacheDirectory func() (string, error) = defaultCacheDir
+
 func cacheDir() (string, error) {
-	dir, err := os.UserCacheDir()
+	return cacheDirectory()
+}
+
+func defaultCacheDir() (string, error) {
+		dir, err := os.UserCacheDir()
 	if err != nil {
 		return "", err
 	}
@@ -51,6 +58,23 @@ func cacheDir() (string, error) {
 
 	return dir, nil
 }
+
+
+// // cacheDir returns Gheppo's cache directory, creating it if necessary.
+// func cacheDir() (string, error) {
+// 	dir, err := os.UserCacheDir()
+// 	if err != nil {
+// 		return "", err
+// 	}
+
+// 	dir = filepath.Join(dir, cacheDirName)
+
+// 	if err := os.MkdirAll(dir, 0700); err != nil {
+// 		return "", err
+// 	}
+
+// 	return dir, nil
+// }
 
 // Load reads the cached summary. ok is false when no valid cache exists yet.
 func Load() (*stats.Summary, bool) {
@@ -237,16 +261,16 @@ func tryAcquireRefreshLock() (
 // This function is kept for compatibility, but background processes
 // should use ReleaseRefreshLockWithToken so that they only remove
 // a lock they actually own.
-func ReleaseRefreshLock() {
-	dir, err := cacheDir()
-	if err != nil {
-		return
-	}
+// func ReleaseRefreshLock() {
+// 	dir, err := cacheDir()
+// 	if err != nil {
+// 		return
+// 	}
 
-	lockPath := filepath.Join(dir, lockFileName)
+// 	lockPath := filepath.Join(dir, lockFileName)
 
-	_ = os.Remove(lockPath)
-}
+// 	_ = os.Remove(lockPath)
+// }
 
 // ReleaseRefreshLockWithToken removes the refresh lock only when
 // the supplied token matches the token currently stored in the lock.

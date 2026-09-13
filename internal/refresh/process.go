@@ -1,33 +1,46 @@
 package refresh
-//process.go is the mechanism layer: `refresh.go` decides whether to refresh; this file only knows HOW to launch the refresh safely as a detached child process
 
-import(
+import (
 	"os"
 	"os/exec"
 )
-const backgroundRefreshEnv = "GHEPPO_BACKGROUND_REFRESH"
 
+const (
+	backgroundRefreshEnv = "GHEPPO_BACKGROUND_REFRESH"
+	refreshLockTokenEnv  = "GHEPPO_REFRESH_LOCK_TOKEN"
+)
 
-func spawnDetachedRefresh() error {
+// spawnDetachedRefresh launches a new Gheppo process running `sync`
+// in the background.
+//
+// The child process receives the refresh lock token through an
+// environment variable so that it can safely release only the
+// lock that belongs to the refresh it started.
+func spawnDetachedRefresh(lockToken string) error {
 	executable, err := os.Executable()
 	if err != nil {
 		return err
 	}
 
+	// Launch another copy of Gheppo and tell it to run `sync`.
 	cmd := exec.Command(executable, "sync")
 
-	// The refresh must be completely silent.
+	// The background refresh must not interact with the terminal.
 	cmd.Stdin = nil
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 
-	cmd.Env = append(os.Environ(),  backgroundRefreshEnv+"=1")   //this means the child gets : GHEPPO_BACKGROUND_REFRESH=1   , while a normal `gheppo sync` doesnt
+	// Preserve the current environment and add information
+	// that tells the child process that it is a background refresh.
+	cmd.Env = append(
+		os.Environ(),
+		backgroundRefreshEnv+"=1",
+		refreshLockTokenEnv+"="+lockToken,
+	)
 
+	// The actual process-detachment settings are platform-specific.
 	cmd.SysProcAttr = detachedProcessAttributes()
 
+	// Start the detached process and return immediately.
 	return cmd.Start()
 }
-
-//SysProcAttr is platform specific, so we're not putting both implementations in this file, rather splitting into process_unix and process_windows (fuck windows)
-
-

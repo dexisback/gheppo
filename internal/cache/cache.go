@@ -148,9 +148,31 @@ func IsStale(s *stats.Summary) bool {
 // Each successful lock acquisition gets a unique token so that only
 // the process that owns the lock can release it.
 func TryAcquireRefreshLock() (release func(), acquired bool) {
+	release, acquired, _ = tryAcquireRefreshLock()
+	return release, acquired
+}
+
+// TryAcquireRefreshLockWithToken is the same lock acquisition mechanism,
+// but also returns the unique token belonging to the process that acquired it.
+//
+// The token is needed when a detached background process must prove
+// that it owns the refresh lock before releasing it.
+func TryAcquireRefreshLockWithToken() (
+	release func(),
+	acquired bool,
+	token string,
+) {
+	return tryAcquireRefreshLock()
+}
+
+func tryAcquireRefreshLock() (
+	release func(),
+	acquired bool,
+	token string,
+) {
 	dir, err := cacheDir()
 	if err != nil {
-		return func() {}, false
+		return func() {}, false, ""
 	}
 
 	lockPath := filepath.Join(dir, lockFileName)
@@ -163,9 +185,9 @@ func TryAcquireRefreshLock() (release func(), acquired bool) {
 	}
 
 	// Generate a unique token that identifies this lock owner.
-	token, err := generateLockToken()
+	token, err = generateLockToken()
 	if err != nil {
-		return func() {}, false
+		return func() {}, false, ""
 	}
 
 	lock := refreshLock{
@@ -175,7 +197,7 @@ func TryAcquireRefreshLock() (release func(), acquired bool) {
 
 	data, err := json.Marshal(lock)
 	if err != nil {
-		return func() {}, false
+		return func() {}, false, ""
 	}
 
 	// O_EXCL makes creation atomic across processes.
@@ -187,49 +209,34 @@ func TryAcquireRefreshLock() (release func(), acquired bool) {
 	)
 
 	if err != nil {
-		return func() {}, false
+		return func() {}, false, ""
 	}
 
 	// Write this process's ownership information into the lock.
 	if _, err := file.Write(data); err != nil {
 		file.Close()
 		_ = os.Remove(lockPath)
-		return func() {}, false
+		return func() {}, false, ""
 	}
 
 	if err := file.Close(); err != nil {
 		_ = os.Remove(lockPath)
-		return func() {}, false
+		return func() {}, false, ""
 	}
 
 	// release only removes the lock if this process still owns it.
 	release = func() {
-		data, err := os.ReadFile(lockPath)
-		if err != nil {
-			return
-		}
-
-		var current refreshLock
-
-		if err := json.Unmarshal(data, &current); err != nil {
-			return
-		}
-
-		// If the token doesn't match, another process owns this lock now.
-		// Do not remove it.
-		if current.Token != token {
-			return
-		}
-
-		_ = os.Remove(lockPath)
+		releaseRefreshLockWithToken(token)
 	}
 
-	return release, true
+	return release, true, token
 }
 
 // ReleaseRefreshLock removes the refresh lock.
 //
-// This is used by the detached background sync process.
+// This function is kept for compatibility, but background processes
+// should use ReleaseRefreshLockWithToken so that they only remove
+// a lock they actually own.
 func ReleaseRefreshLock() {
 	dir, err := cacheDir()
 	if err != nil {
@@ -237,6 +244,44 @@ func ReleaseRefreshLock() {
 	}
 
 	lockPath := filepath.Join(dir, lockFileName)
+
+	_ = os.Remove(lockPath)
+}
+
+// ReleaseRefreshLockWithToken removes the refresh lock only when
+// the supplied token matches the token currently stored in the lock.
+func ReleaseRefreshLockWithToken(token string) {
+	if token == "" {
+		return
+	}
+
+	releaseRefreshLockWithToken(token)
+}
+
+func releaseRefreshLockWithToken(token string) {
+	dir, err := cacheDir()
+	if err != nil {
+		return
+	}
+
+	lockPath := filepath.Join(dir, lockFileName)
+
+	data, err := os.ReadFile(lockPath)
+	if err != nil {
+		return
+	}
+
+	var current refreshLock
+
+	if err := json.Unmarshal(data, &current); err != nil {
+		return
+	}
+
+	// If the token doesn't match, another process owns this lock now.
+	// Do not remove it.
+	if current.Token != token {
+		return
+	}
 
 	_ = os.Remove(lockPath)
 }

@@ -8,9 +8,10 @@ import (
 	"github.com/dexisback/gheppo/internal/cache"
 	"github.com/dexisback/gheppo/internal/github"
 	"github.com/dexisback/gheppo/internal/stats"
-
 	"github.com/spf13/cobra"
 )
+
+const refreshLockTokenEnv = "GHEPPO_REFRESH_LOCK_TOKEN"
 
 var syncCmd = &cobra.Command{
 	Use:   "sync",
@@ -24,12 +25,18 @@ func init() {
 }
 
 func runSync(cmd *cobra.Command, args []string) error {
-	//add lock release (because the detached sync process eventually will say "im done, release the lock")
+	// A manually executed `gheppo sync` does not have this
+	// environment variable, while a detached background refresh does.
 	background := os.Getenv("GHEPPO_BACKGROUND_REFRESH") == "1"
+
 	if background {
-		defer cache.ReleaseRefreshLock()
+		lockToken := os.Getenv(refreshLockTokenEnv)
+
+		// Always attempt to release the lock when the background
+		// refresh finishes, whether the sync succeeds or fails.
+		defer cache.ReleaseRefreshLockWithToken(lockToken)
 	}
-	
+
 	credentials, err := auth.GetCredentials()
 	if err != nil {
 		return fmt.Errorf(

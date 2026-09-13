@@ -1,23 +1,14 @@
-//this sits in b/w main (which will call into this instead of spawning a raw goroutine) and cache (which alr has the lock)
-//this file fixes the bug -- goroutine might die when main() returns 
 package refresh
-
-//refresh.go answers "should we refresh rn", process.go answers "how do we actually launch something 
-// workflow -> loads the cache, checks if there's stale cache (cache.IsStale()) -> if stale, try cache.TryAcquireRefreshLock() -> if lock acquird, hand off to process.go to spawn a detached child process (NOT A GOROUTINE) -> return immediately either way so as to NOT to block the "fast path"
-
-
-
-
-
-
-
 
 import (
 	"github.com/dexisback/gheppo/internal/cache"
 )
 
-
-//mayberefresh checks whether the cache needs refreshing and if it needs -> start a detached background refreshing process
+// MaybeRefresh checks whether the cached data is stale and,
+// if so, attempts to start a detached background refresh.
+//
+// This function is deliberately non-blocking because it runs
+// on Gheppo's normal shell startup path.
 func MaybeRefresh() error {
 	summary, ok := cache.Load()
 
@@ -29,23 +20,24 @@ func MaybeRefresh() error {
 		return nil
 	}
 
-	release, acquired := cache.TryAcquireRefreshLock()
+	// Try to acquire the cross-process refresh lock.
+	// Only one Gheppo process should start a refresh at a time.
+	release, acquired, lockToken := cache.TryAcquireRefreshLockWithToken()
 
 	if !acquired {
 		return nil
 	}
 
-	if err := spawnDetachedRefresh(); err != nil {
+	// Start the detached background sync process and pass it
+	// the token belonging to the lock we just acquired.
+	if err := spawnDetachedRefresh(lockToken); err != nil {
+		// If the child process could not be started, we still own
+		// the lock, so release it immediately.
 		release()
 		return err
 	}
 
-	// Ownership of the lock is intentionally transferred to the
-	// detached refresh process.
+	// Ownership of the lock is intentionally transferred to
+	// the detached refresh process.
 	return nil
 }
-
-//note: Do not call release() after successful spawning.
-// Otherwise the whole point of the cross-process lock disappears: another terminal could immediately start another refresh while the detached child is still fetching.
-
-

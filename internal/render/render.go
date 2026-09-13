@@ -1,224 +1,241 @@
-//imports stats.Summary and does nothing but walk Summary.Grid and paints colored chars.
-
 package render
 
 import (
 	"fmt"
-	"os"
 	"strings"
+	"time"
+	"unicode/utf8"
 
 	"github.com/dexisback/gheppo/internal/stats"
 )
 
-type ColorMode int
-
-const (
-	ColorTrueColor ColorMode = iota
-	Color256
-	ColorASCII
-)
-
-// detect-color-mode determines what level of terminal color support is avaiable rn
-func DetectColorMode() ColorMode {
-	if os.Getenv("NO_COLOR") != "" {
-		return ColorASCII
-	}
-
-	colorterm := strings.ToLower(os.Getenv("COLORTERM"))
-
-	if colorterm == "truecolor" || colorterm == "24bit" {
-		return ColorTrueColor
-	}
-
-	term := strings.ToLower(os.Getenv("TERM"))
-
-	if strings.Contains(term, "256color") {
-		return Color256
-	}
-
-	return ColorASCII
-}
-
-//grid renders a processed contribution summary
-//all date calculations, weekday alignment, streak calculations, and intentsity bucketing have alr been handled by the stats file
-
+// Grid renders a complete, responsive retro-terminal contribution card.
 func Grid(s *stats.Summary) string {
-	weekdayLabels := [...]string{
-		"Sun",
-		"Mon",
-		"Tue",
-		"Wed",
-		"Thu",
-		"Fri",
-		"Sat",
-	}
 	if s == nil {
 		return ""
 	}
 
-	//else:
 	mode := DetectColorMode()
+	theme := DetectTheme()
+	termWidth := GetTerminalWidth()
 
-	var out strings.Builder
+	totalWeeks := 0
+	if s.Grid != nil {
+		totalWeeks = len(s.Grid)
+	}
 
-	// for _, week := range s.Grid {
-	// 	for _, cell := range week {
-	// 		if cell.Empty {
-	// 			out.WriteByte(' ')
-	// 			continue
-	// 		}
-	// 		// out.WriteString(cellColor(mode, cell.Bucket))
-	// 		out.WriteString(cellColor(mode, cell.Bucket))
-	// 		out.WriteByte(' ')
-	// 	}
+	layout := ComputeLayout(termWidth, totalWeeks)
+	return RenderCard(s, layout, mode, theme)
+}
 
-	// 	out.WriteByte('\n')
-	// }
-	// for weekday := 0; weekday < 7; weekday++ {
-	// 	out.WriteString(weekdayLabels[weekday])
-	// 	out.WriteByte(' ')
+// RenderCard builds the full formatted card string according to layout and styling.
+func RenderCard(s *stats.Summary, layout LayoutConfig, mode ColorMode, theme ThemeMode) string {
+	if s == nil {
+		return ""
+	}
 
-	// 	for _, week := range s.Grid {
-	// 		if weekday >= len(week) {
-	// 			out.WriteString("  ")
-	// 			continue
-	// 		}
+	tokens := GetTokens(mode, theme)
 
-	// 		cell := week[weekday]
-	// 		if cell.Empty {
-	// 			out.WriteString("  ")
-	// 			continue
-	// 		}
+	// Border characters
+	var (
+		cornerTL, cornerTR, cornerBL, cornerBR string
+		horizontalBar, verticalBar             string
+	)
 
-	// 		out.WriteString(cellColor(mode, cell.Bucket))
-	// 		out.WriteByte(' ')
-	// 	}
+	if mode == ColorASCII {
+		cornerTL, cornerTR, cornerBL, cornerBR = "+", "+", "+", "+"
+		horizontalBar, verticalBar = "-", "|"
+	} else {
+		cornerTL, cornerTR, cornerBL, cornerBR = "┌", "┐", "└", "┘"
+		horizontalBar, verticalBar = "─", "│"
+	}
 
-	//		out.WriteByte('\n')
-	//	}
+	innerWidth := layout.CardWidth - 4 // inside width between "│ " and " │"
+	if innerWidth < 20 {
+		innerWidth = 20
+	}
+
+	// Sliced weeks for responsive graph
+	var visibleWeeks [][]stats.Cell
+	if len(s.Grid) > 0 {
+		start := len(s.Grid) - layout.VisibleWeeks
+		if start < 0 {
+			start = 0
+		}
+		visibleWeeks = s.Grid[start:]
+	}
+
+	var lines []string
+
+	// Helper to add framed line
+	addLine := func(content string, visibleLen int) {
+		pad := innerWidth - visibleLen
+		if pad < 0 {
+			pad = 0
+		}
+		var b strings.Builder
+		if layout.LeftMargin > 0 {
+			b.WriteString(strings.Repeat(" ", layout.LeftMargin))
+		}
+		b.WriteString(tokens.Border)
+		b.WriteString(verticalBar)
+		b.WriteString(" ")
+		b.WriteString(tokens.Reset)
+		b.WriteString(content)
+		b.WriteString(strings.Repeat(" ", pad))
+		b.WriteString(tokens.Border)
+		b.WriteString(" ")
+		b.WriteString(verticalBar)
+		b.WriteString(tokens.Reset)
+		lines = append(lines, b.String())
+	}
+
+	addEmptyLine := func() {
+		addLine("", 0)
+	}
+
+	// 1. Top border
+	topBorder := fmt.Sprintf("%s%s%s%s%s",
+		tokens.Border,
+		cornerTL,
+		strings.Repeat(horizontalBar, layout.CardWidth-2),
+		cornerTR,
+		tokens.Reset,
+	)
+	if layout.LeftMargin > 0 {
+		topBorder = strings.Repeat(" ", layout.LeftMargin) + topBorder
+	}
+	lines = append(lines, topBorder)
+
+	// 2. Padding
+	addEmptyLine()
+
+	// 3. Header: Wordmark (left) + Year (right)
+	wordmark := GetWordmark(mode)
+	year := time.Now().Year()
+	if !s.FetchedAt.IsZero() {
+		year = s.FetchedAt.Year()
+	}
+	yearStr := fmt.Sprintf("%d", year)
+
+	headerVisLen := utf8.RuneCountInString(wordmark) + utf8.RuneCountInString(yearStr)
+	if headerVisLen <= innerWidth {
+		spacing := innerWidth - headerVisLen
+		headerContent := fmt.Sprintf("%s%s%s%s%s%s%s%s",
+			tokens.Wordmark, tokens.Bold, wordmark, tokens.Reset,
+			strings.Repeat(" ", spacing),
+			tokens.Secondary, tokens.Bold, yearStr,
+		)
+		addLine(headerContent+tokens.Reset, innerWidth)
+	} else {
+		addLine(fmt.Sprintf("%s%s%s%s", tokens.Wordmark, tokens.Bold, wordmark, tokens.Reset), utf8.RuneCountInString(wordmark))
+		addLine(fmt.Sprintf("%s%s%s%s", tokens.Secondary, tokens.Bold, yearStr, tokens.Reset), utf8.RuneCountInString(yearStr))
+	}
+
+	// 4. Subheader: Total contributions (left) + User anchor (right)
+	var totalStr string
+	if s.Total == 1 {
+		totalStr = "1 CONTRIBUTION"
+	} else {
+		totalStr = fmt.Sprintf("%s CONTRIBUTIONS", formatNumber(s.Total))
+	}
+
+	username := s.Login
+	if username == "" {
+		username = "user"
+	}
+	identityStr := "@" + username
+
+	subHeaderVisLen := utf8.RuneCountInString(totalStr) + utf8.RuneCountInString(identityStr)
+	if subHeaderVisLen <= innerWidth {
+		spacing := innerWidth - subHeaderVisLen
+		subHeaderContent := fmt.Sprintf("%s%s%s%s%s%s%s%s",
+			tokens.Primary, tokens.Bold, totalStr, tokens.Reset,
+			strings.Repeat(" ", spacing),
+			tokens.Muted, tokens.Bold, identityStr,
+		)
+		addLine(subHeaderContent+tokens.Reset, innerWidth)
+	} else {
+		addLine(fmt.Sprintf("%s%s%s%s", tokens.Primary, tokens.Bold, totalStr, tokens.Reset), utf8.RuneCountInString(totalStr))
+		addLine(fmt.Sprintf("%s%s%s%s", tokens.Muted, tokens.Bold, identityStr, tokens.Reset), utf8.RuneCountInString(identityStr))
+	}
+
+	addEmptyLine()
+
+	// 5. Month Labels
+	monthHeader := BuildMonthHeader(visibleWeeks, layout.GridWidth)
+	if monthHeader != "" {
+		coloredMonth := fmt.Sprintf("%s%s%s", tokens.Muted, monthHeader, tokens.Reset)
+		addLine(coloredMonth, utf8.RuneCountInString(monthHeader))
+	}
+
+	// 6. Contribution Grid (7 rows, no weekday labels)
 	for weekday := 0; weekday < 7; weekday++ {
-		out.WriteString(weekdayLabels[weekday])
-		out.WriteByte(' ')
-
-		for _, week := range s.Grid {
+		var row strings.Builder
+		for _, week := range visibleWeeks {
 			if weekday >= len(week) {
-				out.WriteByte(' ')
+				row.WriteString("  ")
 				continue
 			}
 
 			cell := week[weekday]
 			if cell.Empty {
-				out.WriteByte(' ')
+				row.WriteString("  ")
 				continue
 			}
 
-			out.WriteString(cellColor(mode, cell.Bucket))
+			row.WriteString(CellColor(mode, theme, cell.Bucket))
+			row.WriteByte(' ')
 		}
 
-		out.WriteByte('\n')
-	}
-	out.WriteString(fmt.Sprintf("%d contributions · %d day streak · %d longest streak", s.Total, s.CurrentStreak, s.LongestStreak))
-	return out.String()
-}
-
-// func cellColor(mode ColorMode, bucket int ) string {
-// 	if mode == ColorASCII{
-// 		return "#"
-// 	}
-// 	//else:
-// 	if bucket <= 0{
-// 		return "\033[38;5;238m■\033[0m"
-
-// 	}
-
-// 	return trueColor(bucket)
-// }
-
-// func cellColor(mode ColorMode, bucket int) string {
-// 	if mode == ColorASCII {
-// 		return "#"
-// 	}
-
-// 	if mode == Color256 {
-// 		return color256(bucket)
-// 	}
-
-// 	return trueColor(bucket)
-// }
-
-// -----------------
-func cellColor(mode ColorMode, bucket int) string {
-	if mode == ColorASCII {
-		return "#"
+		gridRowStr := row.String()
+		addLine(gridRowStr, layout.GridWidth)
 	}
 
-	if mode == Color256 {
-		return color256(bucket)
+	addEmptyLine()
+
+	// 7. Stats Footer (Current Streak + Longest Streak)
+	streakNumStr := formatNumber(s.CurrentStreak)
+	longestNumStr := formatNumber(s.LongestStreak)
+
+	currentStreakText := fmt.Sprintf("%s DAY STREAK", streakNumStr)
+	longestStreakText := fmt.Sprintf("%s LONGEST", longestNumStr)
+
+	statsVisLen := len(currentStreakText) + len(longestStreakText)
+	if statsVisLen <= innerWidth {
+		spacing := innerWidth - statsVisLen
+		leftPart := fmt.Sprintf("%s%s%s%s %s%s%s",
+			tokens.Accent, tokens.Bold, streakNumStr, tokens.Reset,
+			tokens.Secondary, "DAY STREAK", tokens.Reset,
+		)
+		rightPart := fmt.Sprintf("%s%s%s%s %s%s%s",
+			tokens.Accent, tokens.Bold, longestNumStr, tokens.Reset,
+			tokens.Secondary, "LONGEST", tokens.Reset,
+		)
+		statsContent := leftPart + strings.Repeat(" ", spacing) + rightPart
+		addLine(statsContent, innerWidth)
+	} else {
+		// Stacked stats for narrow cards
+		stat1 := fmt.Sprintf("%s%s%s%s %s%s%s", tokens.Accent, tokens.Bold, streakNumStr, tokens.Reset, tokens.Secondary, "DAY STREAK", tokens.Reset)
+		stat2 := fmt.Sprintf("%s%s%s%s %s%s%s", tokens.Accent, tokens.Bold, longestNumStr, tokens.Reset, tokens.Secondary, "LONGEST", tokens.Reset)
+		addLine(stat1, utf8.RuneCountInString(currentStreakText))
+		addLine(stat2, utf8.RuneCountInString(longestStreakText))
 	}
 
-	return trueColor(bucket)
-}
+	addEmptyLine()
 
-var trueColorPalette = map[int]string{
-	0: "\033[38;2;235;237;240m■\033[0m",
-	1: "\033[38;2;155;233;168m■\033[0m",
-	2: "\033[38;2;64;196;99m■\033[0m",
-	3: "\033[38;2;38;166;65m■\033[0m",
-	4: "\033[38;2;22;101;52m■\033[0m",
-}
-
-var color256Palette = map[int]string{
-	0: "\033[38;5;238m■\033[0m",
-	1: "\033[38;5;151m■\033[0m",
-	2: "\033[38;5;77m■\033[0m",
-	3: "\033[38;5;71m■\033[0m",
-	4: "\033[38;5;29m■\033[0m",
-}
-
-//---------------
-// func trueColor(bucket int) string {
-// 	colors := map[int]string{
-// 		0: "\033[38;2;235;237;240m■\033[0m",
-// 		1: "\033[38;2;155;233;168m■\033[0m",
-// 		2: "\033[38;2;64;196;99m■\033[0m",
-// 		3: "\033[38;2;38;166;65m■\033[0m",
-// 		4: "\033[38;2;22;101;52m■\033[0m",
-// 	}
-
-// 	if color, ok := colors[bucket]; ok {
-// 		return color
-// 	}
-// 	return colors[0]
-// }
-
-// func color256(bucket int) string {
-// 	colors := map[int]string{
-// 		0: "\033[38;5;238m■\033[0m",
-// 		1: "\033[38;5;151m■\033[0m",
-// 		2: "\033[38;5;77m■\033[0m",
-// 		3: "\033[38;5;71m■\033[0m",
-// 		4: "\033[38;5;29m■\033[0m",
-// 	}
-
-// 	if color, ok := colors[bucket]; ok {
-// 		return color
-// 	}
-
-// 	return colors[0]
-// }
-
-func trueColor(bucket int) string {
-	if color, ok := trueColorPalette[bucket]; ok {
-		return color
+	// 8. Bottom border
+	bottomBorder := fmt.Sprintf("%s%s%s%s%s",
+		tokens.Border,
+		cornerBL,
+		strings.Repeat(horizontalBar, layout.CardWidth-2),
+		cornerBR,
+		tokens.Reset,
+	)
+	if layout.LeftMargin > 0 {
+		bottomBorder = strings.Repeat(" ", layout.LeftMargin) + bottomBorder
 	}
+	lines = append(lines, bottomBorder)
 
-	return trueColorPalette[0]
-}
-
-func color256(bucket int) string {
-	if color, ok := color256Palette[bucket]; ok {
-		return color
-	}
-
-	return color256Palette[0]
+	return strings.Join(lines, "\n")
 }

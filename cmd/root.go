@@ -75,8 +75,7 @@ func runDefault(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	output := render.Grid(summary)
-	fmt.Fprintln(cmd.OutOrStdout(), output)
+	render.Animate(cmd.OutOrStdout(), summary)
 
 	_ = refresh.MaybeRefresh()
 	return nil

@@ -1,6 +1,7 @@
 package render
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 	"time"
@@ -8,8 +9,7 @@ import (
 	"github.com/dexisback/gheppo/internal/stats"
 )
 
-// TestDetectColorMode verifies that terminal environment variables
-// are mapped to the correct rendering mode.
+// TestDetectColorMode verifies environment variable mapping to color modes.
 func TestDetectColorMode(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -43,7 +43,7 @@ func TestDetectColorMode(t *testing.T) {
 			want: Color256,
 		},
 		{
-			name: "unknown terminal",
+			name: "unknown/dumb terminal",
 			term: "dumb",
 			want: ColorASCII,
 		},
@@ -56,339 +56,246 @@ func TestDetectColorMode(t *testing.T) {
 			t.Setenv("TERM", tt.term)
 
 			got := DetectColorMode()
-
 			if got != tt.want {
-				t.Errorf(
-					"DetectColorMode() = %v, want %v",
-					got,
-					tt.want,
-				)
+				t.Errorf("DetectColorMode() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
-// TestGridNilSummary verifies that rendering a nil summary
-// is handled safely.
-func TestGridNilSummary(t *testing.T) {
-	output := Grid(nil)
+// TestDetectTheme verifies theme detection logic.
+func TestDetectTheme(t *testing.T) {
+	tests := []struct {
+		name        string
+		gheppoTheme string
+		colorfgbg   string
+		want        ThemeMode
+	}{
+		{
+			name:        "explicit dark",
+			gheppoTheme: "dark",
+			want:        ThemeDark,
+		},
+		{
+			name:        "explicit light",
+			gheppoTheme: "light",
+			want:        ThemeLight,
+		},
+		{
+			name:      "colorfgbg dark",
+			colorfgbg: "15;0",
+			want:      ThemeDark,
+		},
+		{
+			name:      "colorfgbg light",
+			colorfgbg: "0;15",
+			want:      ThemeLight,
+		},
+		{
+			name: "default is dark",
+			want: ThemeDark,
+		},
+	}
 
-	if output != "" {
-		t.Errorf(
-			"Grid(nil) = %q, want empty output",
-			output,
-		)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("GHEPPO_THEME", tt.gheppoTheme)
+			t.Setenv("COLORFGBG", tt.colorfgbg)
+
+			got := DetectTheme()
+			if got != tt.want {
+				t.Errorf("DetectTheme() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
-// TestGridEmptySummary verifies that rendering an empty summary
-// does not panic and still produces the summary line.
+// TestGridNilSummary verifies nil safety.
+func TestGridNilSummary(t *testing.T) {
+	output := Grid(nil)
+	if output != "" {
+		t.Errorf("Grid(nil) = %q, want empty string", output)
+	}
+}
+
+// TestGridEmptySummary verifies rendering of empty summary.
 func TestGridEmptySummary(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
+	t.Setenv("COLUMNS", "80")
 
-	summary := &stats.Summary{}
+	summary := &stats.Summary{
+		Login: "testuser",
+	}
 
 	output := Grid(summary)
-
 	if output == "" {
 		t.Fatal("Grid(empty summary) returned empty output")
 	}
 
-	want := "0 contributions · 0 day streak · 0 longest streak"
-
-	if !strings.Contains(output, want) {
-		t.Errorf(
-			"Grid(empty summary) = %q, want summary %q",
-			output,
-			want,
-		)
+	if !strings.Contains(output, "0 CONTRIBUTIONS") {
+		t.Errorf("output missing 0 CONTRIBUTIONS: %q", output)
+	}
+	if !strings.Contains(output, "@testuser") {
+		t.Errorf("output missing username: %q", output)
 	}
 }
 
-// TestGridContainsContributionData verifies that real cells and
-// summary information appear in the rendered output.
-func TestGridContainsContributionData(t *testing.T) {
+// TestGridFullCardElements verifies all required sections are present.
+func TestGridFullCardElements(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
-	t.Setenv("COLORTERM", "")
-	t.Setenv("TERM", "dumb")
+	t.Setenv("COLUMNS", "80")
+
+	// 5 weeks of data
+	grid := make([][]stats.Cell, 5)
+	startDate := time.Date(2026, 1, 4, 0, 0, 0, 0, time.UTC)
+	for w := 0; w < 5; w++ {
+		grid[w] = make([]stats.Cell, 7)
+		for d := 0; d < 7; d++ {
+			date := startDate.AddDate(0, 0, w*7+d)
+			grid[w][d] = stats.Cell{
+				Date:   date,
+				Count:  d + 1,
+				Bucket: (d % 4) + 1,
+			}
+		}
+	}
 
 	summary := &stats.Summary{
-		Login:         "test-user",
-		Total:         42,
-		CurrentStreak: 5,
-		LongestStreak: 10,
-		Grid: [][]stats.Cell{
-			{
-				{
-					Date:   time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC),
-					Count:  0,
-					Bucket: 0,
-				},
-				{
-					Date:   time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
-					Count:  5,
-					Bucket: 2,
-				},
-			},
-		},
+		Login:         "dexisback",
+		Total:         1386,
+		CurrentStreak: 7,
+		LongestStreak: 39,
+		FetchedAt:     time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
+		Grid:          grid,
 	}
 
 	output := Grid(summary)
 
-	if output == "" {
-		t.Fatal("Grid() returned empty output")
+	// 1. Check rectangular border
+	if !strings.Contains(output, "+-") || !strings.Contains(output, "-+") {
+		t.Errorf("output missing ASCII border: %q", output)
 	}
 
-	if strings.Count(output, "#") < 2 {
-		t.Errorf(
-			"rendered grid does not contain expected ASCII cells: %q",
-			output,
-		)
+	// 2. Check year and total contributions
+	if !strings.Contains(output, "2026") {
+		t.Errorf("output missing year: %q", output)
+	}
+	if !strings.Contains(output, "1,386 CONTRIBUTIONS") {
+		t.Errorf("output missing total contributions with comma: %q", output)
 	}
 
-	if !strings.Contains(output, "42 contributions") {
-		t.Errorf(
-			"rendered output does not contain total contribution count: %q",
-			output,
-		)
+	// 3. Check stats
+	if !strings.Contains(output, "7 DAY STREAK") {
+		t.Errorf("output missing current streak: %q", output)
+	}
+	if !strings.Contains(output, "39 LONGEST") {
+		t.Errorf("output missing longest streak: %q", output)
 	}
 
-	if !strings.Contains(output, "5 day streak") {
-		t.Errorf(
-			"rendered output does not contain current streak: %q",
-			output,
-		)
+	// 4. Check username
+	if !strings.Contains(output, "@dexisback") {
+		t.Errorf("output missing @dexisback: %q", output)
 	}
 
-	if !strings.Contains(output, "10 longest streak") {
-		t.Errorf(
-			"rendered output does not contain longest streak: %q",
-			output,
-		)
+	// 5. Verify NO weekday labels (Sun, Mon, Tue, etc.)
+	for _, day := range []string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"} {
+		if strings.Contains(output, day) {
+			t.Errorf("output contains weekday label %q (must NOT have weekday labels): %q", day, output)
+		}
+	}
+
+	// 6. Check month label
+	if !strings.Contains(output, "JAN") {
+		t.Errorf("output missing JAN month label: %q", output)
 	}
 }
 
-// TestGridEmptyCells verifies that cells marked as Empty are rendered
-// as spaces rather than contribution blocks.
-func TestGridEmptyCells(t *testing.T) {
+// TestResponsiveBreakpoints verifies rendering across terminal widths.
+func TestResponsiveBreakpoints(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
-	t.Setenv("COLORTERM", "")
-	t.Setenv("TERM", "dumb")
+
+	// Generate 52 weeks
+	grid := make([][]stats.Cell, 52)
+	startDate := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	for w := 0; w < 52; w++ {
+		grid[w] = make([]stats.Cell, 7)
+		for d := 0; d < 7; d++ {
+			grid[w][d] = stats.Cell{
+				Date:   startDate.AddDate(0, 0, w*7+d),
+				Count:  1,
+				Bucket: 2,
+			}
+		}
+	}
 
 	summary := &stats.Summary{
-		Total: 1,
-		Grid: [][]stats.Cell{
-			{
-				{
-					Empty: true,
-				},
-				{
-					Date:   time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC),
-					Count:  1,
-					Bucket: 1,
-				},
-			},
-		},
+		Login:         "dexisback",
+		Total:         500,
+		CurrentStreak: 12,
+		LongestStreak: 45,
+		FetchedAt:     time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC),
+		Grid:          grid,
 	}
 
-	output := Grid(summary)
+	widths := []int{46, 50, 60, 70, 80, 100, 120, 160}
+	for _, w := range widths {
+		t.Run(string(rune(w)), func(t *testing.T) {
+			layout := ComputeLayout(w, len(grid))
+			card := RenderCard(summary, layout, ColorASCII, ThemeDark)
 
-	if output == "" {
-		t.Fatal("Grid() returned empty output")
-	}
+			if card == "" {
+				t.Fatalf("rendered empty card for width %d", w)
+			}
 
-	firstLine, _, _ := strings.Cut(output, "\n")
-
-	if !strings.HasPrefix(firstLine, "Sun ") {
-		t.Fatalf("first grid row does not start with weekday label: %q", firstLine)
-	}
-
-	if len(firstLine) <= len("Sun ") {
-		t.Fatalf("first grid row is too short: %q", firstLine)
-	}
-
-	if firstLine[len("Sun ")] != ' ' {
-		t.Errorf(
-			"first rendered cell after weekday label = %q, want space",
-			firstLine[len("Sun ")],
-		)
+			lines := strings.Split(card, "\n")
+			for i, line := range lines {
+				// Strip ANSI if any and check line length does not exceed terminal width
+				if len(line) > w+2 {
+					t.Errorf("width %d: line %d length %d exceeds terminal width: %q", w, i, len(line), line)
+				}
+			}
+		})
 	}
 }
 
-// TestCellColorASCII verifies the ASCII fallback representation.
-func TestCellColorASCII(t *testing.T) {
+// TestTrueColorAnd256Palettes verifies ANSI sequence generation for dark/light themes.
+func TestTrueColorAnd256Palettes(t *testing.T) {
 	for bucket := 0; bucket <= 4; bucket++ {
-		got := cellColor(ColorASCII, bucket)
+		tcDark := CellColor(ColorTrueColor, ThemeDark, bucket)
+		if !strings.Contains(tcDark, "\033[38;2;") {
+			t.Errorf("tcDark bucket %d missing truecolor: %q", bucket, tcDark)
+		}
 
-		if got != "#" {
-			t.Errorf(
-				"cellColor(ColorASCII, %d) = %q, want %q",
-				bucket,
-				got,
-				"#",
-			)
+		tcLight := CellColor(ColorTrueColor, ThemeLight, bucket)
+		if !strings.Contains(tcLight, "\033[38;2;") {
+			t.Errorf("tcLight bucket %d missing truecolor: %q", bucket, tcLight)
+		}
+
+		c256Dark := CellColor(Color256, ThemeDark, bucket)
+		if !strings.Contains(c256Dark, "\033[38;5;") {
+			t.Errorf("c256Dark bucket %d missing 256color: %q", bucket, c256Dark)
+		}
+
+		c256Light := CellColor(Color256, ThemeLight, bucket)
+		if !strings.Contains(c256Light, "\033[38;5;") {
+			t.Errorf("c256Light bucket %d missing 256color: %q", bucket, c256Light)
 		}
 	}
 }
 
-// TestTrueColor verifies that each supported intensity bucket
-// produces a truecolor ANSI escape sequence.
-func TestTrueColor(t *testing.T) {
-	for bucket := 0; bucket <= 4; bucket++ {
-		got := trueColor(bucket)
-
-		if got == "" {
-			t.Errorf(
-				"trueColor(%d) returned empty string",
-				bucket,
-			)
-		}
-
-		if !strings.Contains(got, "\033[38;2;") {
-			t.Errorf(
-				"trueColor(%d) = %q, want truecolor ANSI sequence",
-				bucket,
-				got,
-			)
-		}
-	}
-}
-
-// TestTrueColorInvalidBucket verifies that unsupported buckets
-// fall back to the zero-contribution color.
-func TestTrueColorInvalidBucket(t *testing.T) {
-	got := trueColor(99)
-
-	want := trueColor(0)
-
-	if got != want {
-		t.Errorf(
-			"trueColor(99) = %q, want fallback %q",
-			got,
-			want,
-		)
-	}
-}
-
-// TestColor256 verifies that each supported intensity bucket
-// produces a 256-color ANSI escape sequence.
-func TestColor256(t *testing.T) {
-	for bucket := 0; bucket <= 4; bucket++ {
-		got := color256(bucket)
-
-		if got == "" {
-			t.Errorf(
-				"color256(%d) returned empty string",
-				bucket,
-			)
-		}
-
-		if !strings.Contains(got, "\033[38;5;") {
-			t.Errorf(
-				"color256(%d) = %q, want 256-color ANSI sequence",
-				bucket,
-				got,
-			)
-		}
-	}
-}
-
-// TestColor256InvalidBucket verifies that unsupported buckets
-// fall back to the zero-contribution color.
-func TestColor256InvalidBucket(t *testing.T) {
-	got := color256(99)
-
-	want := color256(0)
-
-	if got != want {
-		t.Errorf(
-			"color256(99) = %q, want fallback %q",
-			got,
-			want,
-		)
-	}
-}
-
-// TestCellColor256 verifies that Color256 actually uses the
-// 256-color palette instead of the truecolor palette.
-func TestCellColor256(t *testing.T) {
-	got := cellColor(Color256, 3)
-
-	if !strings.Contains(got, "\033[38;5;") {
-		t.Errorf(
-			"cellColor(Color256, 3) = %q, want 256-color ANSI sequence",
-			got,
-		)
-	}
-}
-
-// TestCellColorTrueColor verifies that ColorTrueColor uses
-// the truecolor palette.
-func TestCellColorTrueColor(t *testing.T) {
-	got := cellColor(ColorTrueColor, 3)
-
-	if !strings.Contains(got, "\033[38;2;") {
-		t.Errorf(
-			"cellColor(ColorTrueColor, 3) = %q, want truecolor ANSI sequence",
-			got,
-		)
-	}
-}
-
-
-func TestDetectColorModeNoColorOverridesColorSupport(t *testing.T) {
+// TestAnimateNonInteractiveFallback verifies Animate writes without error in non-interactive environment.
+func TestAnimateNonInteractiveFallback(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
-	t.Setenv("COLORTERM", "truecolor")
-	t.Setenv("TERM", "xterm-256color")
+	t.Setenv("GHEPPO_NO_ANIMATION", "1")
 
-	if got := DetectColorMode(); got != ColorASCII {
-		t.Fatalf("DetectColorMode() = %v, want ColorASCII", got)
-	}
-}
-
-
-
-
-//for if weekday >= len(week) {
-//	out.WriteByte(' ')
-//w	continue
-//}
-func TestGridIncompleteWeek(t *testing.T) {
-	t.Setenv("NO_COLOR", "1")
-
+	var buf bytes.Buffer
 	summary := &stats.Summary{
-		Grid: [][]stats.Cell{
-			{
-				{
-					Count: 1,
-					Bucket: 1,
-				},
-			},
-			{
-				{
-					Count: 2,
-					Bucket: 2,
-				},
-				{
-					Count: 3,
-					Bucket: 3,
-				},
-			},
-		},
+		Login: "dexisback",
+		Total: 100,
 	}
 
-	output := Grid(summary)
-	lines := strings.Split(output, "\n")
-
-	if len(lines) < 7 {
-		t.Fatalf("expected at least 7 grid rows, got %d", len(lines))
-	}
-
-	if !strings.HasPrefix(lines[0], "Sun ") {
-		t.Fatalf("first row = %q, want Sun label", lines[0])
-	}
-
-	if !strings.HasPrefix(lines[1], "Mon ") {
-		t.Fatalf("second row = %q, want Mon label", lines[1])
+	Animate(&buf, summary)
+	if !strings.Contains(buf.String(), "@dexisback") {
+		t.Errorf("Animate output missing username: %s", buf.String())
 	}
 }

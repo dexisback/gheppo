@@ -1,18 +1,22 @@
 _gheppo_once() {
-    local gheppo_prompt_command=""
-    local command_part
+    if declare -p PROMPT_COMMAND 2>/dev/null | grep -q 'declare -a'; then
+        PROMPT_COMMAND=("${_GHEPPO_ORIGINAL_PROMPT_COMMAND[@]}")
+    else
+        PROMPT_COMMAND="${_GHEPPO_ORIGINAL_PROMPT_COMMAND-}"
+    fi
 
-    for command_part in ${PROMPT_COMMAND-}; do
-        if [[ "$command_part" != "_gheppo_once" ]]; then
-            if [[ -n "$gheppo_prompt_command" ]]; then
-                gheppo_prompt_command+=";"
-            fi
-            gheppo_prompt_command+="$command_part"
-        fi
-    done
+    unset _GHEPPO_ORIGINAL_PROMPT_COMMAND
+    unset -f _gheppo_once
 
-    PROMPT_COMMAND="$gheppo_prompt_command"
     command gheppo
 }
 
-PROMPT_COMMAND="_gheppo_once${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+if declare -p PROMPT_COMMAND 2>/dev/null | grep -q 'declare -a'; then
+    _GHEPPO_ORIGINAL_PROMPT_COMMAND=("${PROMPT_COMMAND[@]}")
+    PROMPT_COMMAND=("_gheppo_once" "${PROMPT_COMMAND[@]}")
+else
+    _GHEPPO_ORIGINAL_PROMPT_COMMAND="${PROMPT_COMMAND-}"
+    PROMPT_COMMAND="_gheppo_once${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+fi
+
+

@@ -43,6 +43,15 @@ func DetectColorMode() ColorMode {
 //all date calculations, weekday alignment, streak calculations, and intentsity bucketing have alr been handled by the stats file
 
 func Grid(s *stats.Summary) string {
+	weekdayLabels := [...]string{
+	"Sun",
+	"Mon",
+	"Tue",
+	"Wed",
+	"Thu",
+	"Fri",
+	"Sat",
+}
 	if s == nil {
 		return ""
 	}
@@ -52,18 +61,62 @@ func Grid(s *stats.Summary) string {
 
 	var out strings.Builder
 
+	// for _, week := range s.Grid {
+	// 	for _, cell := range week {
+	// 		if cell.Empty {
+	// 			out.WriteByte(' ')
+	// 			continue
+	// 		}
+	// 		// out.WriteString(cellColor(mode, cell.Bucket))
+	// 		out.WriteString(cellColor(mode, cell.Bucket))
+	// 		out.WriteByte(' ')
+	// 	}
+
+	// 	out.WriteByte('\n')
+	// }
+// for weekday := 0; weekday < 7; weekday++ {
+// 	out.WriteString(weekdayLabels[weekday])
+// 	out.WriteByte(' ')
+
+// 	for _, week := range s.Grid {
+// 		if weekday >= len(week) {
+// 			out.WriteString("  ")
+// 			continue
+// 		}
+
+// 		cell := week[weekday]
+// 		if cell.Empty {
+// 			out.WriteString("  ")
+// 			continue
+// 		}
+
+// 		out.WriteString(cellColor(mode, cell.Bucket))
+// 		out.WriteByte(' ')
+// 	}
+
+// 	out.WriteByte('\n')
+// }
+for weekday := 0; weekday < 7; weekday++ {
+	out.WriteString(weekdayLabels[weekday])
+	out.WriteByte(' ')
+
 	for _, week := range s.Grid {
-		for _, cell := range week {
-			if cell.Empty {
-				out.WriteByte(' ')
-				continue
-			}
-			out.WriteString(cellColor(mode, cell.Bucket))
+		if weekday >= len(week) {
+			out.WriteByte(' ')
+			continue
 		}
 
-		out.WriteByte('\n')
+		cell := week[weekday]
+		if cell.Empty {
+			out.WriteByte(' ')
+			continue
+		}
+
+		out.WriteString(cellColor(mode, cell.Bucket))
 	}
 
+	out.WriteByte('\n')
+}
 	out.WriteString(fmt.Sprintf("%d contributions · %d day streak · %d longest streak", s.Total, s.CurrentStreak, s.LongestStreak))
 	return out.String()
 }

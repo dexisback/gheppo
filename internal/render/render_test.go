@@ -139,7 +139,7 @@ func TestGridContainsContributionData(t *testing.T) {
 		t.Fatal("Grid() returned empty output")
 	}
 
-	if !strings.Contains(output, "##") {
+	if strings.Count(output, "#") < 2 {
 		t.Errorf(
 			"rendered grid does not contain expected ASCII cells: %q",
 			output,

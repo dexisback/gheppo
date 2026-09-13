@@ -94,23 +94,56 @@ func runGheppo(t *testing.T, binary, cacheHome string) string {
 	return string(output)
 }
 
+// func TestGheppoFirstRun(t *testing.T) {
+// 	binary := buildBinary(t)
+// 	cacheDir := t.TempDir()
+
+// 	cmd := exec.Command(binary)
+// 	cmd.Env = append(os.Environ(), "XDG_CACHE_HOME="+cacheDir)
+
+// 	output, err := cmd.CombinedOutput()
+// 	if err != nil {
+// 		t.Fatalf("gheppo returned error: %v\n%s", err, output)
+// 	}
+// 	got := string(output)
+
+// 	if !strings.Contains(got, "gheppo isnt setup yet") {
+// 		t.Fatalf("output does not contain setup instructions : %q", got)
+// 	}
+
+// }
+
 func TestGheppoFirstRun(t *testing.T) {
 	binary := buildBinary(t)
 	cacheDir := t.TempDir()
 
 	cmd := exec.Command(binary)
-	cmd.Env = append(os.Environ(), "XDG_CACHE_HOME="+cacheDir)
+	cmd.Env = append(
+		os.Environ(),
+		"XDG_CACHE_HOME="+cacheDir,
+	)
 
 	output, err := cmd.CombinedOutput()
+
 	if err != nil {
-		t.Fatalf("gheppo returned error: %v\n%s", err, output)
+		t.Fatalf(
+			"gheppo returned error: %v\n%s",
+			err,
+			output,
+		)
 	}
+
 	got := string(output)
 
-	if !strings.Contains(got, "gheppo isnt setup yet") {
-		t.Fatalf("output does not contain setup instructions : %q", got)
-	}
+	want := "Gheppo isn't set up yet.\nRun `gheppo auth login` then `gheppo sync`.\n"
 
+	if got != want {
+		t.Fatalf(
+			"unexpected output:\n%q\nwant:\n%q",
+			got,
+			want,
+		)
+	}
 }
 
 func TestGheppoLoadsCachedSummary(t *testing.T) {

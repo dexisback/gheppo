@@ -135,8 +135,7 @@ func TestGheppoFirstRun(t *testing.T) {
 
 	got := string(output)
 
-	// want := "Gheppo isn't set up yet.\nRun `gheppo auth login` then `gheppo sync`.\n"
-	want := "No contribution data found.\n\nRun:\n  gheppo sync\n"
+	want := "Gheppo isn't set up yet.\n\nRun:\n  gheppo auth login\n  gheppo sync\n"
 
 	if got != want {
 		t.Fatalf(

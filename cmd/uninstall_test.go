@@ -17,14 +17,21 @@ func TestRemoveShellIntregration(t *testing.T) {
 alias ll='ls -lah'
 
 # >>> gheppo >>>
-autoload -Uz add-zsh-hook
+[[ -o interactive ]] || return 0
 
-_gheppo_once() {
-	add-zsh-hook -d precmd _gheppo_once
-	command gheppo
-}
+if [[ -o zle ]]; then
+    autoload -Uz add-zle-hook-widget
 
-add-zsh-hook precmd _gheppo_once
+    _gheppo_once() {
+        add-zle-hook-widget -d line-init _gheppo_once
+        zle && zle -I
+        command gheppo
+    }
+
+    add-zle-hook-widget line-init _gheppo_once
+else
+    command gheppo
+fi
 # <<< gheppo <<<
 
 export EDITOR=vim

@@ -210,18 +210,29 @@ Fallback ───────────────────────�
 ## 9. Shell Integration Mechanics
 
 ### Zsh (Powerlevel10k & Instant Prompt Safe)
-Placing output commands directly in `.zshrc` triggers warnings in prompt managers like Powerlevel10k. Gheppo uses a self-destructing `precmd` hook:
+Placing output commands directly in `.zshrc` or in `precmd` hooks triggers warnings in Powerlevel10k Instant Prompt because standard file descriptors remain redirected to a temporary buffer until prompt expansion completes. Gheppo hooks into the ZLE `line-init` lifecycle via a self-deregistering widget:
 
 ```zsh
-autoload -Uz add-zsh-hook
+[[ -o interactive ]] || return 0
 
-_gheppo_once() {
-    add-zsh-hook -d precmd _gheppo_once
+if [[ -o zle ]]; then
+    autoload -Uz add-zle-hook-widget
+
+    _gheppo_once() {
+        add-zle-hook-widget -d line-init _gheppo_once
+        zle && zle -I
+        command gheppo
+    }
+
+    add-zle-hook-widget line-init _gheppo_once
+else
     command gheppo
-}
-
-add-zsh-hook precmd _gheppo_once
+fi
 ```
+
+- **`zle-line-init` execution**: Runs when the line editor begins reading user input, guarantees stdout/stderr descriptors have been restored by P10k, and avoids the `[WARNING]: Console output during zsh initialization detected` alert.
+- **`zle -I`**: Invalidates ZLE's current display buffer so the prompt is redrawn cleanly underneath the printed heatmap.
+- **Non-ZLE / Non-Interactive Fallbacks**: Safely returns in non-interactive subshells and falls back to direct execution if ZLE is disabled.
 
 ### Bash (Preserving `PROMPT_COMMAND`)
 Bash users may have existing `PROMPT_COMMAND` definitions configured as strings or arrays (Bash 5.1+). Gheppo wraps and restores the exact original definition on first execution:

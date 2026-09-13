@@ -208,4 +208,51 @@ func TestGheppoLoadsCachedSummary(t *testing.T) {
 	}
 }
 
-//we're testing go build > actual gheppo binary > actual root command > actual cache.Load() > no cache > actual first run message
+func TestZshIntegrationScript(t *testing.T) {
+	zshPath, err := exec.LookPath("zsh")
+	if err != nil {
+		t.Skip("zsh not available on this system")
+	}
+
+	scriptPath, err := filepath.Abs("../scripts/shell/gheppo.zsh")
+	if err != nil {
+		t.Fatalf("locating script: %v", err)
+	}
+
+	// 1. Verify syntax
+	syntaxCmd := exec.Command(zshPath, "-n", scriptPath)
+	if out, err := syntaxCmd.CombinedOutput(); err != nil {
+		t.Fatalf("syntax check failed for gheppo.zsh: %v\n%s", err, out)
+	}
+
+	// 2. Verify non-interactive execution succeeds cleanly (code 0)
+	execCmd := exec.Command(zshPath, "-c", "source "+scriptPath)
+	if out, err := execCmd.CombinedOutput(); err != nil {
+		t.Fatalf("non-interactive execution failed for gheppo.zsh: %v\n%s", err, out)
+	}
+}
+
+func TestBashIntegrationScript(t *testing.T) {
+	bashPath, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not available on this system")
+	}
+
+	scriptPath, err := filepath.Abs("../scripts/shell/gheppo.bash")
+	if err != nil {
+		t.Fatalf("locating script: %v", err)
+	}
+
+	// 1. Verify syntax
+	syntaxCmd := exec.Command(bashPath, "-n", scriptPath)
+	if out, err := syntaxCmd.CombinedOutput(); err != nil {
+		t.Fatalf("syntax check failed for gheppo.bash: %v\n%s", err, out)
+	}
+
+	// 2. Verify non-interactive execution succeeds cleanly (code 0)
+	execCmd := exec.Command(bashPath, "-c", "source "+scriptPath)
+	if out, err := execCmd.CombinedOutput(); err != nil {
+		t.Fatalf("non-interactive execution failed for gheppo.bash: %v\n%s", err, out)
+	}
+}
+

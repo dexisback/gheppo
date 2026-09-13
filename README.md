@@ -99,7 +99,7 @@ Open a new terminal tab or window to view your ambient heatmap.
 
 Gheppo hooks into shell startup without introducing prompt latency or display glitches.
 
-- **Zsh**: Uses a self-unregistering `precmd` hook (`add-zsh-hook -d precmd _gheppo_once`) to avoid Powerlevel10k instant prompt warnings (`Console output during zsh initialization detected`).
+- **Zsh**: Uses a self-unregistering line-init widget hook (`add-zle-hook-widget line-init _gheppo_once`) so execution occurs after the prompt is ready, preventing Powerlevel10k instant prompt warnings.
 - **Bash**: Safely wraps `PROMPT_COMMAND` (supporting both string and array formats) and restores original user commands after initial execution.
 
 Shell hooks are demarcated by managed comment delimiters:

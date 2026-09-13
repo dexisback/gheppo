@@ -6,6 +6,10 @@ import (
 
 	"github.com/dexisback/gheppo/internal/github"
 )
+func dateOnly(t time.Time) time.Time {
+	y, m, d := t.Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, t.Location())
+}
 
 // Summarize converts GitHub's contribution calendar into a renderer-ready
 // summary containing aligned grid data, intensity buckets, and streaks.
@@ -158,33 +162,81 @@ func bucket(count, max int) int {
 	return level
 }
 
-func calculateStreaks(days []parsedDay) (current int, longest int) {
+// func calculateStreaks(days []parsedDay) (current int, longest int) {
+// 	if len(days) == 0 {
+// 		return 0, 0
+// 	}
+
+// 	// Longest streak: straightforward linear scan.
+// 	run := 0
+
+// 	for _, day := range days {
+// 		if day.Count > 0 {
+// 			run++
+
+// 			if run > longest {
+// 				longest = run
+// 			}
+// 		} else {
+// 			run = 0
+// 		}
+// 	}
+
+// 	// Current streak is different from longest streak.
+// 	//
+// 	// If today has zero contributions, today's day is still in progress,
+// 	// so start looking from yesterday rather than immediately breaking
+// 	// the streak.
+// 	// today := time.Now().Truncate(24 * time.Hour)
+// 	today := dateOnly(time.Now())
+
+// 	last := len(days) - 1
+
+// 	if sameDay(days[last].Date, today) && days[last].Count == 0 {
+// 		last--
+// 	}
+
+// 	if last < 0 {
+// 		return 0, longest
+// 	}
+
+// 	// Walk backwards from the most recent completed/contributing day.
+// 	for i := last; i >= 0; i-- {
+// 		if days[i].Count == 0 {
+// 			break
+// 		}
+
+// 		current++
+// 	}
+
+// 	return current, longest
+// }
+
+
+func calculateStreaks(days []parsedDay) (current, longest int) {
 	if len(days) == 0 {
 		return 0, 0
 	}
 
-	// Longest streak: straightforward linear scan.
 	run := 0
-
-	for _, day := range days {
-		if day.Count > 0 {
-			run++
-
-			if run > longest {
-				longest = run
-			}
-		} else {
+	for i, day := range days {
+		if day.Count == 0 {
 			run = 0
+			continue
+		}
+
+		if i > 0 && !sameDay(days[i-1].Date.AddDate(0, 0, 1), day.Date) {
+			run = 0
+		}
+
+		run++
+
+		if run > longest {
+			longest = run
 		}
 	}
 
-	// Current streak is different from longest streak.
-	//
-	// If today has zero contributions, today's day is still in progress,
-	// so start looking from yesterday rather than immediately breaking
-	// the streak.
-	today := time.Now().Truncate(24 * time.Hour)
-
+	today := dateOnly(time.Now())
 	last := len(days) - 1
 
 	if sameDay(days[last].Date, today) && days[last].Count == 0 {
@@ -195,9 +247,12 @@ func calculateStreaks(days []parsedDay) (current int, longest int) {
 		return 0, longest
 	}
 
-	// Walk backwards from the most recent completed/contributing day.
 	for i := last; i >= 0; i-- {
 		if days[i].Count == 0 {
+			break
+		}
+
+		if i < last && !sameDay(days[i].Date.AddDate(0, 0, 1), days[i+1].Date) {
 			break
 		}
 
@@ -206,7 +261,6 @@ func calculateStreaks(days []parsedDay) (current int, longest int) {
 
 	return current, longest
 }
-
 func sameDay(a, b time.Time) bool {
 	ay, am, ad := a.Date()
 	by, bm, bd := b.Date()

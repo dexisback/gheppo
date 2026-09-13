@@ -12,8 +12,8 @@ import (
 	"time"
 )
 
-const graphqlURL= "https://api.github.com/graphql"
-
+// const graphqlURL= "https://api.github.com/graphql"
+var graphqlURL = "https://api.github.com/graphql"
 
 type Client struct {
 	token string 

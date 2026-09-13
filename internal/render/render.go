@@ -44,14 +44,14 @@ func DetectColorMode() ColorMode {
 
 func Grid(s *stats.Summary) string {
 	weekdayLabels := [...]string{
-	"Sun",
-	"Mon",
-	"Tue",
-	"Wed",
-	"Thu",
-	"Fri",
-	"Sat",
-}
+		"Sun",
+		"Mon",
+		"Tue",
+		"Wed",
+		"Thu",
+		"Fri",
+		"Sat",
+	}
 	if s == nil {
 		return ""
 	}
@@ -74,49 +74,49 @@ func Grid(s *stats.Summary) string {
 
 	// 	out.WriteByte('\n')
 	// }
-// for weekday := 0; weekday < 7; weekday++ {
-// 	out.WriteString(weekdayLabels[weekday])
-// 	out.WriteByte(' ')
+	// for weekday := 0; weekday < 7; weekday++ {
+	// 	out.WriteString(weekdayLabels[weekday])
+	// 	out.WriteByte(' ')
 
-// 	for _, week := range s.Grid {
-// 		if weekday >= len(week) {
-// 			out.WriteString("  ")
-// 			continue
-// 		}
+	// 	for _, week := range s.Grid {
+	// 		if weekday >= len(week) {
+	// 			out.WriteString("  ")
+	// 			continue
+	// 		}
 
-// 		cell := week[weekday]
-// 		if cell.Empty {
-// 			out.WriteString("  ")
-// 			continue
-// 		}
+	// 		cell := week[weekday]
+	// 		if cell.Empty {
+	// 			out.WriteString("  ")
+	// 			continue
+	// 		}
 
-// 		out.WriteString(cellColor(mode, cell.Bucket))
-// 		out.WriteByte(' ')
-// 	}
+	// 		out.WriteString(cellColor(mode, cell.Bucket))
+	// 		out.WriteByte(' ')
+	// 	}
 
-// 	out.WriteByte('\n')
-// }
-for weekday := 0; weekday < 7; weekday++ {
-	out.WriteString(weekdayLabels[weekday])
-	out.WriteByte(' ')
+	//		out.WriteByte('\n')
+	//	}
+	for weekday := 0; weekday < 7; weekday++ {
+		out.WriteString(weekdayLabels[weekday])
+		out.WriteByte(' ')
 
-	for _, week := range s.Grid {
-		if weekday >= len(week) {
-			out.WriteByte(' ')
-			continue
+		for _, week := range s.Grid {
+			if weekday >= len(week) {
+				out.WriteByte(' ')
+				continue
+			}
+
+			cell := week[weekday]
+			if cell.Empty {
+				out.WriteByte(' ')
+				continue
+			}
+
+			out.WriteString(cellColor(mode, cell.Bucket))
 		}
 
-		cell := week[weekday]
-		if cell.Empty {
-			out.WriteByte(' ')
-			continue
-		}
-
-		out.WriteString(cellColor(mode, cell.Bucket))
+		out.WriteByte('\n')
 	}
-
-	out.WriteByte('\n')
-}
 	out.WriteString(fmt.Sprintf("%d contributions · %d day streak · %d longest streak", s.Total, s.CurrentStreak, s.LongestStreak))
 	return out.String()
 }
@@ -134,6 +134,19 @@ for weekday := 0; weekday < 7; weekday++ {
 // 	return trueColor(bucket)
 // }
 
+// func cellColor(mode ColorMode, bucket int) string {
+// 	if mode == ColorASCII {
+// 		return "#"
+// 	}
+
+// 	if mode == Color256 {
+// 		return color256(bucket)
+// 	}
+
+// 	return trueColor(bucket)
+// }
+
+// -----------------
 func cellColor(mode ColorMode, bucket int) string {
 	if mode == ColorASCII {
 		return "#"
@@ -146,33 +159,66 @@ func cellColor(mode ColorMode, bucket int) string {
 	return trueColor(bucket)
 }
 
-func trueColor(bucket int) string {
-	colors := map[int]string{
-		0: "\033[38;2;235;237;240m■\033[0m",
-		1: "\033[38;2;155;233;168m■\033[0m",
-		2: "\033[38;2;64;196;99m■\033[0m",
-		3: "\033[38;2;38;166;65m■\033[0m",
-		4: "\033[38;2;22;101;52m■\033[0m",
-	}
+var trueColorPalette = map[int]string{
+	0: "\033[38;2;235;237;240m■\033[0m",
+	1: "\033[38;2;155;233;168m■\033[0m",
+	2: "\033[38;2;64;196;99m■\033[0m",
+	3: "\033[38;2;38;166;65m■\033[0m",
+	4: "\033[38;2;22;101;52m■\033[0m",
+}
 
-	if color, ok := colors[bucket]; ok {
+var color256Palette = map[int]string{
+	0: "\033[38;5;238m■\033[0m",
+	1: "\033[38;5;151m■\033[0m",
+	2: "\033[38;5;77m■\033[0m",
+	3: "\033[38;5;71m■\033[0m",
+	4: "\033[38;5;29m■\033[0m",
+}
+
+//---------------
+// func trueColor(bucket int) string {
+// 	colors := map[int]string{
+// 		0: "\033[38;2;235;237;240m■\033[0m",
+// 		1: "\033[38;2;155;233;168m■\033[0m",
+// 		2: "\033[38;2;64;196;99m■\033[0m",
+// 		3: "\033[38;2;38;166;65m■\033[0m",
+// 		4: "\033[38;2;22;101;52m■\033[0m",
+// 	}
+
+// 	if color, ok := colors[bucket]; ok {
+// 		return color
+// 	}
+// 	return colors[0]
+// }
+
+// func color256(bucket int) string {
+// 	colors := map[int]string{
+// 		0: "\033[38;5;238m■\033[0m",
+// 		1: "\033[38;5;151m■\033[0m",
+// 		2: "\033[38;5;77m■\033[0m",
+// 		3: "\033[38;5;71m■\033[0m",
+// 		4: "\033[38;5;29m■\033[0m",
+// 	}
+
+// 	if color, ok := colors[bucket]; ok {
+// 		return color
+// 	}
+
+// 	return colors[0]
+// }
+
+func trueColor(bucket int) string {
+	if color, ok := trueColorPalette[bucket]; ok {
 		return color
 	}
-	return colors[0]
+
+	return trueColorPalette[0]
 }
 
 func color256(bucket int) string {
-	colors := map[int]string{
-		0: "\033[38;5;238m■\033[0m",
-		1: "\033[38;5;151m■\033[0m",
-		2: "\033[38;5;77m■\033[0m",
-		3: "\033[38;5;71m■\033[0m",
-		4: "\033[38;5;29m■\033[0m",
-	}
-
-	if color, ok := colors[bucket]; ok {
+	if color, ok := color256Palette[bucket]; ok {
 		return color
 	}
 
-	return colors[0]
+	return color256Palette[0]
 }

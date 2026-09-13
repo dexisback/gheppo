@@ -197,12 +197,20 @@ func TestGridEmptyCells(t *testing.T) {
 		t.Fatal("Grid() returned empty output")
 	}
 
-	// The first character should be the space representing
-	// the empty cell.
-	if output[0] != ' ' {
+	firstLine, _, _ := strings.Cut(output, "\n")
+
+	if !strings.HasPrefix(firstLine, "Sun ") {
+		t.Fatalf("first grid row does not start with weekday label: %q", firstLine)
+	}
+
+	if len(firstLine) <= len("Sun ") {
+		t.Fatalf("first grid row is too short: %q", firstLine)
+	}
+
+	if firstLine[len("Sun ")] != ' ' {
 		t.Errorf(
-			"first rendered character = %q, want space",
-			output[0],
+			"first rendered cell after weekday label = %q, want space",
+			firstLine[len("Sun ")],
 		)
 	}
 }
@@ -324,5 +332,63 @@ func TestCellColorTrueColor(t *testing.T) {
 			"cellColor(ColorTrueColor, 3) = %q, want truecolor ANSI sequence",
 			got,
 		)
+	}
+}
+
+
+func TestDetectColorModeNoColorOverridesColorSupport(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	t.Setenv("COLORTERM", "truecolor")
+	t.Setenv("TERM", "xterm-256color")
+
+	if got := DetectColorMode(); got != ColorASCII {
+		t.Fatalf("DetectColorMode() = %v, want ColorASCII", got)
+	}
+}
+
+
+
+
+//for if weekday >= len(week) {
+//	out.WriteByte(' ')
+//w	continue
+//}
+func TestGridIncompleteWeek(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+
+	summary := &stats.Summary{
+		Grid: [][]stats.Cell{
+			{
+				{
+					Count: 1,
+					Bucket: 1,
+				},
+			},
+			{
+				{
+					Count: 2,
+					Bucket: 2,
+				},
+				{
+					Count: 3,
+					Bucket: 3,
+				},
+			},
+		},
+	}
+
+	output := Grid(summary)
+	lines := strings.Split(output, "\n")
+
+	if len(lines) < 7 {
+		t.Fatalf("expected at least 7 grid rows, got %d", len(lines))
+	}
+
+	if !strings.HasPrefix(lines[0], "Sun ") {
+		t.Fatalf("first row = %q, want Sun label", lines[0])
+	}
+
+	if !strings.HasPrefix(lines[1], "Mon ") {
+		t.Fatalf("second row = %q, want Mon label", lines[1])
 	}
 }

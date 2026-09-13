@@ -265,3 +265,70 @@ func TestMaybeRefreshTransfersLockOwnership(t *testing.T) {
 
 	release()
 }
+
+
+
+func TestMaybeRefreshNoCache(t *testing.T) {
+	setupTestCache(t)
+
+	originalSpawn := spawnRefresh
+	spawnCalled := false
+
+	spawnRefresh = func(lockToken string) error {
+		spawnCalled = true
+		return nil
+	}
+
+	t.Cleanup(func() {
+		spawnRefresh = originalSpawn
+	})
+
+	if err := MaybeRefresh(); err != nil {
+		t.Fatalf("MaybeRefresh() returned error: %v", err)
+	}
+
+	if spawnCalled {
+		t.Fatal("background refresh started when no cache existed")
+	}
+}
+
+
+
+func TestMaybeRefreshNilSummary(t *testing.T) {
+	setupTestCache(t)
+
+	cacheDir := filepath.Join(os.Getenv("XDG_CACHE_HOME"), "gheppo")
+	if err := os.MkdirAll(cacheDir, 0700); err != nil {
+		t.Fatalf("failed to create cache directory: %v", err)
+	}
+
+	data := []byte(`{"summary":null,"fetchedAt":"2026-09-13T00:00:00Z"}`)
+
+	if err := os.WriteFile(
+		filepath.Join(cacheDir, "data.json"),
+		data,
+		0600,
+	); err != nil {
+		t.Fatalf("failed to write cache: %v", err)
+	}
+
+	originalSpawn := spawnRefresh
+	spawnCalled := false
+
+	spawnRefresh = func(lockToken string) error {
+		spawnCalled = true
+		return nil
+	}
+
+	t.Cleanup(func() {
+		spawnRefresh = originalSpawn
+	})
+
+	if err := MaybeRefresh(); err != nil {
+		t.Fatalf("MaybeRefresh() returned error: %v", err)
+	}
+
+	if spawnCalled {
+		t.Fatal("background refresh started for nil summary")
+	}
+}

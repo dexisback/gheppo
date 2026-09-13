@@ -273,3 +273,103 @@ func TestRefreshLockToken(t *testing.T) {
 		t.Fatal("successful lock acquisition returned an empty token")
 	}
 }
+
+
+
+
+func TestIsStaleFuture(t *testing.T) {
+	future := testSummary()
+	future.FetchedAt = time.Now().Add(1 * time.Hour)
+
+	if IsStale(future) {
+		t.Fatal("IsStale() returned true for future cache")
+	}
+}
+
+
+func TestSaveReplacesExistingCache(t *testing.T) {
+	setupTestCache(t)
+
+	first := testSummary()
+	first.Total = 42
+
+	if err := Save(first); err != nil {
+		t.Fatalf("first Save() returned error: %v", err)
+	}
+
+	second := testSummary()
+	second.Total = 99
+
+	if err := Save(second); err != nil {
+		t.Fatalf("second Save() returned error: %v", err)
+	}
+
+	loaded, ok := Load()
+	if !ok {
+		t.Fatal("Load() returned false after second Save()")
+	}
+
+	if loaded.Total != 99 {
+		t.Fatalf("Total = %d, want 99", loaded.Total)
+	}
+}
+
+
+func TestLoadNilSummary(t *testing.T) {
+	dir := setupTestCache(t)
+
+	cachePath := filepath.Join(dir, cacheFileName)
+
+	data := []byte(`{
+		"summary": null,
+		"fetchedAt": "2026-09-13T00:00:00Z"
+	}`)
+
+	if err := os.WriteFile(cachePath, data, 0600); err != nil {
+		t.Fatalf("failed to create cache: %v", err)
+	}
+
+	loaded, ok := Load()
+
+	if ok {
+		t.Fatal("Load() returned true for nil summary")
+	}
+
+	if loaded != nil {
+		t.Fatal("Load() returned a summary for nil summary")
+	}
+}
+
+
+//stale lock recovery:
+func TestRefreshLockRecoversStaleLock(t *testing.T) {
+	dir := setupTestCache(t)
+
+	lockPath := filepath.Join(dir, lockFileName)
+
+	if err := os.WriteFile(
+		lockPath,
+		[]byte(`{"token":"old-token","createdAt":"2026-09-12T00:00:00Z"}`),
+		0600,
+	); err != nil {
+		t.Fatalf("failed to create stale lock: %v", err)
+	}
+
+	staleTime := time.Now().Add(-3 * time.Minute)
+
+	if err := os.Chtimes(lockPath, staleTime, staleTime); err != nil {
+		t.Fatalf("failed to make lock stale: %v", err)
+	}
+
+	release, acquired, token := TryAcquireRefreshLockWithToken()
+
+	if !acquired {
+		t.Fatal("failed to acquire lock after stale lock recovery")
+	}
+
+	if token == "" {
+		t.Fatal("stale lock recovery returned empty token")
+	}
+
+	release()
+}

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-
+	
 	"github.com/zalando/go-keyring"
 	"golang.org/x/term"
 )
@@ -145,13 +145,14 @@ func Login() error {
 
 	return nil
 }
+var githubUserURL = "https://api.github.com/user"    //for the new tests
 
 // resolveLogin validates the PAT against GitHub and retrieves
 // the username associated with the authenticated account.
 func resolveLogin(token string) (string, error) {
 	req, err := http.NewRequest(
 		http.MethodGet,
-		"https://api.github.com/user",
+		githubUserURL,
 		nil,
 	)
 	if err != nil {

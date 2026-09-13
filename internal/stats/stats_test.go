@@ -437,3 +437,33 @@ func TestSameDay(t *testing.T) {
 		t.Fatal("sameDay() returned true for different calendar dates")
 	}
 }
+func TestCalculateStreaksHandlesDateGaps(t *testing.T) {
+	days := []parsedDay{
+		{Date: time.Date(2026, 9, 10, 0, 0, 0, 0, time.UTC), Count: 5},
+		{Date: time.Date(2026, 9, 11, 0, 0, 0, 0, time.UTC), Count: 3},
+		{Date: time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC), Count: 2},
+	}
+
+	_, longest := calculateStreaks(days)
+
+	if longest != 2 {
+		t.Fatalf("expected longest streak 2, got %d", longest)
+	}
+}
+
+//-----
+
+
+func TestCalculateStreaksHandlesConsecutiveDays(t *testing.T) {
+	days := []parsedDay{
+		{Date: time.Date(2026, 9, 10, 0, 0, 0, 0, time.UTC), Count: 5},
+		{Date: time.Date(2026, 9, 11, 0, 0, 0, 0, time.UTC), Count: 3},
+		{Date: time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC), Count: 2},
+	}
+
+	_, longest := calculateStreaks(days)
+
+	if longest != 3 {
+		t.Fatalf("expected longest streak 3, got %d", longest)
+	}
+}

@@ -69,62 +69,77 @@ func DetectTheme() ThemeMode {
 	return ThemeDark
 }
 
-// Calibrated Palettes
+// Design-specified color palettes
+// Dark Theme: TrueColor exact values from design spec
 var (
-	// Dark Theme TrueColor (tuned for optimal contrast and vibrant progression)
-	trueColorDarkPalette = map[int]string{
-		0: "\033[38;2;33;38;45m■\033[0m",   // Level 0: subtle dark slate block (#21262d)
-		1: "\033[38;2;14;68;41m■\033[0m",   // Level 1: deep emerald green (#0e4429)
-		2: "\033[38;2;0;109;50m■\033[0m",   // Level 2: rich forest green (#006d32)
-		3: "\033[38;2;38;166;65m■\033[0m",  // Level 3: bright leaf green (#26a641)
-		4: "\033[38;2;87;255;122m■\033[0m", // Level 4: luminous mint / lime (#57ff7a)
-	}
+	// Dark Theme - TrueColor
+	darkBorder        = "\033[38;2;48;54;61m"    // #30363D
+	darkPrimaryText   = "\033[38;2;240;246;252m" // #F0F6FC
+	darkSecondaryText = "\033[38;2;139;148;158m" // #8B949E
+	darkMutedText     = "\033[38;2;110;118;129m" // #6E7681
 
-	// Dark Theme 256-color
-	color256DarkPalette = map[int]string{
-		0: "\033[38;5;238m■\033[0m", // Level 0: dark grey
-		1: "\033[38;5;22m■\033[0m",  // Level 1: dark green
-		2: "\033[38;5;28m■\033[0m",  // Level 2: medium green
-		3: "\033[38;5;35m■\033[0m",  // Level 3: bright green
-		4: "\033[38;5;46m■\033[0m",  // Level 4: neon green
-	}
+	darkEmptyCell      = "\033[38;2;33;38;45m"    // #21262D
+	darkActivityLevel1 = "\033[38;2;14;107;59m"   // #0E6B3B
+	darkActivityLevel2 = "\033[38;2;64;196;99m"   // #40C463
+	darkActivityLevel3 = "\033[38;2;53;208;111m"  // #35D06F
+	darkActivityLevel4 = "\033[38;2;126;231;135m" // #7EE787
 
-	// Light Theme TrueColor
-	trueColorLightPalette = map[int]string{
-		0: "\033[38;2;235;237;240m■\033[0m", // Level 0: light grey block (#ebedf0)
-		1: "\033[38;2;155;233;168m■\033[0m", // Level 1: light mint (#9be9a8)
-		2: "\033[38;2;64;196;99m■\033[0m",   // Level 2: spring green (#40c463)
-		3: "\033[38;2;46;160;67m■\033[0m",   // Level 3: rich forest green (#2ea043)
-		4: "\033[38;2;26;127;55m■\033[0m",   // Level 4: deep emerald (#1a7f37)
-	}
+	// Light Theme - TrueColor
+	lightBorder        = "\033[38;2;208;215;222m" // #D0D7DE
+	lightPrimaryText   = "\033[38;2;31;35;40m"    // #1F2328
+	lightSecondaryText = "\033[38;2;101;109;118m" // #656D76
+	lightMutedText     = "\033[38;2;87;96;106m"   // #57606A
 
-	// Light Theme 256-color
-	color256LightPalette = map[int]string{
-		0: "\033[38;5;254m■\033[0m", // Level 0: light grey
-		1: "\033[38;5;151m■\033[0m", // Level 1: light mint
-		2: "\033[38;5;77m■\033[0m",  // Level 2: spring green
-		3: "\033[38;5;71m■\033[0m",  // Level 3: deep green
-		4: "\033[38;5;29m■\033[0m",  // Level 4: dark emerald
-	}
+	lightEmptyCell      = "\033[38;2;235;237;240m" // #EBEDF0
+	lightActivityLevel1 = "\033[38;2;155;233;168m" // #9BE9A8
+	lightActivityLevel2 = "\033[38;2;64;196;99m"   // #40C463
+	lightActivityLevel3 = "\033[38;2;48;161;78m"   // #30A14E
+	lightActivityLevel4 = "\033[38;2;33;110;57m"   // #216E39
 
-	// ASCII Intensity Glyphs
-	asciiPalette = map[int]string{
-		0: "·", // Level 0: small centered dot
-		1: "░", // Level 1: light shade
-		2: "▒", // Level 2: medium shade
-		3: "▓", // Level 3: dark shade
-		4: "█", // Level 4: full solid block
-	}
+	// 256-color approximations
+	// Dark Theme
+	dark256Border         = "\033[38;5;237m"
+	dark256PrimaryText    = "\033[38;5;231m"
+	dark256SecondaryText  = "\033[38;5;246m"
+	dark256MutedText      = "\033[38;5;243m"
+	dark256EmptyCell      = "\033[38;5;235m"
+	dark256ActivityLevel1 = "\033[38;5;28m"
+	dark256ActivityLevel2 = "\033[38;5;41m"
+	dark256ActivityLevel3 = "\033[38;5;48m"
+	dark256ActivityLevel4 = "\033[38;5;83m"
 
-	// Pure ASCII fallback (when NO_COLOR is set)
-	pureAsciiPalette = map[int]string{
-		0: ".",
-		1: "-",
-		2: "=",
-		3: "+",
-		4: "#",
-	}
+	// Light Theme
+	light256Border         = "\033[38;5;252m"
+	light256PrimaryText    = "\033[38;5;235m"
+	light256SecondaryText  = "\033[38;5;241m"
+	light256MutedText      = "\033[38;5;243m"
+	light256EmptyCell      = "\033[38;5;254m"
+	light256ActivityLevel1 = "\033[38;5;157m"
+	light256ActivityLevel2 = "\033[38;5;77m"
+	light256ActivityLevel3 = "\033[38;5;71m"
+	light256ActivityLevel4 = "\033[38;5;29m"
+
+	reset = "\033[0m"
+	bold  = "\033[1m"
 )
+
+// ASCII intensity glyphs (NO_COLOR)
+var asciiGlyphs = map[int]string{
+	0: "·",
+	1: "░",
+	2: "▒",
+	3: "▓",
+	4: "█",
+}
+
+// Pure ASCII fallback (when unicode might not work)
+var pureAsciiGlyphs = map[int]string{
+	0: ".",
+	1: "-",
+	2: "=",
+	3: "+",
+	4: "#",
+}
 
 // CellColor returns the formatted cell glyph for the given mode, theme, and bucket.
 func CellColor(mode ColorMode, theme ThemeMode, bucket int) string {
@@ -136,96 +151,143 @@ func CellColor(mode ColorMode, theme ThemeMode, bucket int) string {
 	}
 
 	if mode == ColorASCII {
+		glyph := asciiGlyphs[bucket]
 		if os.Getenv("NO_COLOR") != "" {
-			return pureAsciiPalette[bucket]
+			glyph = pureAsciiGlyphs[bucket]
 		}
-		return asciiPalette[bucket]
+		return glyph
 	}
 
-	if theme == ThemeLight {
+	// Block character for colored cells
+	block := "■"
+
+	var color string
+	if theme == ThemeDark {
 		if mode == Color256 {
-			return color256LightPalette[bucket]
+			switch bucket {
+			case 0:
+				color = dark256EmptyCell
+			case 1:
+				color = dark256ActivityLevel1
+			case 2:
+				color = dark256ActivityLevel2
+			case 3:
+				color = dark256ActivityLevel3
+			case 4:
+				color = dark256ActivityLevel4
+			}
+		} else { // TrueColor
+			switch bucket {
+			case 0:
+				color = darkEmptyCell
+			case 1:
+				color = darkActivityLevel1
+			case 2:
+				color = darkActivityLevel2
+			case 3:
+				color = darkActivityLevel3
+			case 4:
+				color = darkActivityLevel4
+			}
 		}
-		return trueColorLightPalette[bucket]
+	} else { // Light theme
+		if mode == Color256 {
+			switch bucket {
+			case 0:
+				color = light256EmptyCell
+			case 1:
+				color = light256ActivityLevel1
+			case 2:
+				color = light256ActivityLevel2
+			case 3:
+				color = light256ActivityLevel3
+			case 4:
+				color = light256ActivityLevel4
+			}
+		} else { // TrueColor
+			switch bucket {
+			case 0:
+				color = lightEmptyCell
+			case 1:
+				color = lightActivityLevel1
+			case 2:
+				color = lightActivityLevel2
+			case 3:
+				color = lightActivityLevel3
+			case 4:
+				color = lightActivityLevel4
+			}
+		}
 	}
 
-	if mode == Color256 {
-		return color256DarkPalette[bucket]
-	}
-	return trueColorDarkPalette[bucket]
+	return color + block + reset
 }
 
 // UI Color tokens for text, borders, headers, and metadata
 type PaletteTokens struct {
-	Border    string
-	Wordmark  string
-	Primary   string
-	Secondary string
-	Muted     string
-	Accent    string
-	Reset     string
-	Bold      string
+	Border       string
+	Primary      string
+	Secondary    string
+	Muted        string
+	ActivityHigh string // For year progress and green accent numbers
+	Reset        string
+	Bold         string
 }
 
 // GetTokens returns ANSI styling tokens for the active mode and theme.
 func GetTokens(mode ColorMode, theme ThemeMode) PaletteTokens {
 	if mode == ColorASCII {
-		return PaletteTokens{}
+		return PaletteTokens{
+			Reset: "",
+			Bold:  "",
+		}
 	}
 
-	reset := "\033[0m"
-	bold := "\033[1m"
-
-	if theme == ThemeLight {
+	if theme == ThemeDark {
 		if mode == Color256 {
 			return PaletteTokens{
-				Border:    "\033[38;5;250m", // #bcbcbc
-				Wordmark:  "\033[38;5;235m", // #262626
-				Primary:   "\033[38;5;234m", // #1c1c1c
-				Secondary: "\033[38;5;242m", // #6c6c6c
-				Muted:     "\033[38;5;246m", // #949494
-				Accent:    "\033[38;5;29m",  // #00875f
-				Reset:     reset,
-				Bold:      bold,
+				Border:       dark256Border,
+				Primary:      dark256PrimaryText,
+				Secondary:    dark256SecondaryText,
+				Muted:        dark256MutedText,
+				ActivityHigh: dark256ActivityLevel3,
+				Reset:        reset,
+				Bold:         bold,
 			}
 		}
-		// TrueColor Light
+		// TrueColor Dark
 		return PaletteTokens{
-			Border:    "\033[38;2;208;215;222m", // #d0d7de
-			Wordmark:  "\033[38;2;36;41;47m",    // #24292f
-			Primary:   "\033[38;2;36;41;47m",    // #24292f
-			Secondary: "\033[38;2;87;96;106m",   // #57606a
-			Muted:     "\033[38;2;140;149;159m", // #8c959f
-			Accent:    "\033[38;2;26;127;55m",   // #1a7f37
-			Reset:     reset,
-			Bold:      bold,
+			Border:       darkBorder,
+			Primary:      darkPrimaryText,
+			Secondary:    darkSecondaryText,
+			Muted:        darkMutedText,
+			ActivityHigh: darkActivityLevel3,
+			Reset:        reset,
+			Bold:         bold,
 		}
 	}
 
-	// Dark Theme
+	// Light Theme
 	if mode == Color256 {
 		return PaletteTokens{
-			Border:    "\033[38;5;238m", // #444444
-			Wordmark:  "\033[38;5;255m", // #eeeeee
-			Primary:   "\033[38;5;253m", // #dadada
-			Secondary: "\033[38;5;245m", // #8a8a8a
-			Muted:     "\033[38;5;240m", // #585858
-			Accent:    "\033[38;5;46m",  // #00ff00
-			Reset:     reset,
-			Bold:      bold,
+			Border:       light256Border,
+			Primary:      light256PrimaryText,
+			Secondary:    light256SecondaryText,
+			Muted:        light256MutedText,
+			ActivityHigh: light256ActivityLevel3,
+			Reset:        reset,
+			Bold:         bold,
 		}
 	}
-
-	// TrueColor Dark
+	// TrueColor Light
 	return PaletteTokens{
-		Border:    "\033[38;2;48;54;61m",    // #30363d (GitHub dark border)
-		Wordmark:  "\033[38;2;240;246;252m", // #f0f6fc (Crisp high-contrast white)
-		Primary:   "\033[38;2;230;237;243m", // #e6edf3 (Primary text)
-		Secondary: "\033[38;2;139;148;158m", // #8b949e (Secondary text)
-		Muted:     "\033[38;2;110;118;129m", // #6e7681 (Muted labels)
-		Accent:    "\033[38;2;57;211;83m",   // #39d353 (Vibrant green accent)
-		Reset:     reset,
-		Bold:      bold,
+		Border:       lightBorder,
+		Primary:      lightPrimaryText,
+		Secondary:    lightSecondaryText,
+		Muted:        lightMutedText,
+		ActivityHigh: lightActivityLevel3,
+		Reset:        reset,
+		Bold:         bold,
 	}
 }
 
@@ -239,4 +301,8 @@ func formatNumber(n int) string {
 		out = append(out, byte(c))
 	}
 	return string(out)
+}
+
+func formatFloat(f float64) string {
+	return fmt.Sprintf("%.1f", f)
 }

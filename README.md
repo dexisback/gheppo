@@ -111,14 +111,30 @@ Shell hooks are demarcated by managed comment delimiters:
 
 ---
 
+## Terminal Font
+
+For optimal visual quality, Gheppo is designed around **Iosevka Term**.
+
+Iosevka Term provides:
+- Compact terminal-oriented proportions
+- High information density
+- Distinctive glyphs with strong alignment
+- Excellent rendering of contribution cells and statistics
+
+While Gheppo works with any monospace font, the UI is optimized for Iosevka Term's metrics.
+
+Download: [Iosevka](https://github.com/be5invis/Iosevka)
+
+---
+
 ## Terminal Color Modes
 
 Gheppo automatically negotiates terminal color support:
 
-1. **`NO_COLOR` set**: Standard ASCII output (`#` symbols, zero escape sequences).
-2. **`COLORTERM=truecolor` / `24bit`**: Full 24-bit TrueColor gradient.
-3. **`TERM=*256color*`**: 256-color ANSI palette fallback.
-4. **Basic terminal**: ASCII fallback.
+1. **`NO_COLOR` set**: Standard ASCII output (`.` `-` `=` `+` `#` intensity glyphs, zero color codes).
+2. **`COLORTERM=truecolor` / `24bit`**: Full 24-bit TrueColor rendering with design-specified GitHub green palette.
+3. **`TERM=*256color*`**: 256-color ANSI palette approximation.
+4. **Basic terminal**: ASCII fallback with intensity-based glyphs.
 
 ---
 

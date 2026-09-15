@@ -1,4 +1,5 @@
 PROJECT.md
 gheppo
 .env
-
+.agents/
+skills-lock.json

@@ -184,12 +184,13 @@ func TestGridFullCardElements(t *testing.T) {
 		t.Errorf("output missing total contributions with comma: %q", output)
 	}
 
-	// 3. Check stats
-	if !strings.Contains(output, "7 DAY STREAK") {
-		t.Errorf("output missing current streak: %q", output)
+	// 3. Check stats (current streak is no longer shown by default per design spec)
+	// Longest streak should be shown
+	if !strings.Contains(output, "39 DAYS") {
+		t.Errorf("output missing longest streak days: %q", output)
 	}
-	if !strings.Contains(output, "39 LONGEST") {
-		t.Errorf("output missing longest streak: %q", output)
+	if !strings.Contains(output, "LONGEST STREAK") {
+		t.Errorf("output missing longest streak label: %q", output)
 	}
 
 	// 4. Check username

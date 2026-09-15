@@ -6,6 +6,7 @@ import (
 
 	"github.com/dexisback/gheppo/internal/github"
 )
+
 func dateOnly(t time.Time) time.Time {
 	y, m, d := t.Date()
 	return time.Date(y, m, d, 0, 0, 0, 0, t.Location())
@@ -19,8 +20,12 @@ func Summarize(cal *github.ContributionCalendar) *Summary {
 	}
 
 	summary := &Summary{
-		Login: cal.Login,
-		Total: cal.Total,
+		Login:      cal.Login,
+		Total:      cal.Total,
+		Followers:  cal.Followers,
+		Following:  cal.Following,
+		Repos:      cal.Repos,
+		TotalStars: cal.TotalStars,
 	}
 
 	// Flatten all days while preserving chronological order.
@@ -69,6 +74,14 @@ func Summarize(cal *github.ContributionCalendar) *Summary {
 	summary.Grid = buildGrid(parsedDays, maxCount)
 
 	summary.CurrentStreak, summary.LongestStreak = calculateStreaks(parsedDays)
+
+	// Calculate best day
+	summary.BestDay, summary.BestDayCount = findBestDay(parsedDays)
+
+	// Calculate daily average
+	if len(parsedDays) > 0 {
+		summary.DailyAverage = float64(summary.Total) / float64(len(parsedDays))
+	}
 
 	return summary
 }
@@ -212,7 +225,6 @@ func bucket(count, max int) int {
 // 	return current, longest
 // }
 
-
 func calculateStreaks(days []parsedDay) (current, longest int) {
 	if len(days) == 0 {
 		return 0, 0
@@ -266,4 +278,25 @@ func sameDay(a, b time.Time) bool {
 	by, bm, bd := b.Date()
 
 	return ay == by && am == bm && ad == bd
+}
+
+// findBestDay returns the date and count of the day with the highest contribution count.
+// If multiple days tie, the most recent is returned.
+func findBestDay(days []parsedDay) (time.Time, int) {
+	if len(days) == 0 {
+		return time.Time{}, 0
+	}
+
+	bestDay := days[0].Date
+	bestCount := days[0].Count
+
+	for _, day := range days[1:] {
+		// Use >= to prefer the most recent day when counts are equal
+		if day.Count >= bestCount {
+			bestDay = day.Date
+			bestCount = day.Count
+		}
+	}
+
+	return bestDay, bestCount
 }

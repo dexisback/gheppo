@@ -193,16 +193,18 @@ func TestGheppoLoadsCachedSummary(t *testing.T) {
 		)
 	}
 
-	if !strings.Contains(strings.ToUpper(output), "7 DAY STREAK") {
+	// Current streak is no longer shown by default per design spec
+	// Check for longest streak instead
+	if !strings.Contains(strings.ToUpper(output), "21 DAYS") {
 		t.Fatalf(
-			"cached current streak was not rendered: %q",
+			"cached longest streak days was not rendered: %q",
 			output,
 		)
 	}
 
-	if !strings.Contains(strings.ToUpper(output), "21 LONGEST") {
+	if !strings.Contains(strings.ToUpper(output), "LONGEST STREAK") {
 		t.Fatalf(
-			"cached longest streak was not rendered: %q",
+			"cached longest streak label was not rendered: %q",
 			output,
 		)
 	}
@@ -255,4 +257,3 @@ func TestBashIntegrationScript(t *testing.T) {
 		t.Fatalf("non-interactive execution failed for gheppo.bash: %v\n%s", err, out)
 	}
 }
-

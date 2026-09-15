@@ -1,21 +1,21 @@
 package render
 
-// Typographic Wordmark for Gheppo
-const (
-	WordmarkUnicode = "ɢ ʜ ᴇ ᴘ ᴘ ᴏ"
-	WordmarkASCII   = "G H E P P O"
-)
+// Gheppo trace wordmark following the design spec
+// The wordmark should have a "trace/path" aesthetic with the G extending leftward
 
-// GetWordmark returns the styled wordmark for the active color mode.
+// GetWordmark returns the complete wordmark with trace for the active color mode.
 func GetWordmark(mode ColorMode) string {
 	if mode == ColorASCII {
-		return WordmarkASCII
+		return wordmarkASCII
 	}
-	return WordmarkUnicode
+	return wordmarkUnicode
 }
 
-// GetWordmarkLines returns the wordmark as lines for compatibility.
-func GetWordmarkLines(mode ColorMode) []string {
-	return []string{GetWordmark(mode)}
-}
+const (
+	// Unicode version with trace aesthetic
+	// Compact, geometric, terminal-native
+	wordmarkUnicode = "········ G H E P P O"
 
+	// ASCII fallback
+	wordmarkASCII = "........ G H E P P O"
+)

@@ -1,4 +1,4 @@
-//this page's only job is to talking to github api  -- sending the GraphQL request -> getting raw JSON back -> decoding it into go structs 
+//this page's only job is to talking to github api  -- sending the GraphQL request -> getting raw JSON back -> decoding it into go structs
 //its job is NOT to know about contribution buckets, calendards with meaning or rewndering. (that layer is internal/stats)
 
 package github
@@ -16,10 +16,9 @@ import (
 var graphqlURL = "https://api.github.com/graphql"
 
 type Client struct {
-	token string 
-	httpClient   *http.Client 
+	token      string
+	httpClient *http.Client
 }
-
 
 func NewClient(token string) *Client {
 	return &Client{
@@ -30,17 +29,19 @@ func NewClient(token string) *Client {
 	}
 }
 
-
 // ContributionCalendar is Gheppo's internal representation of github contri calendar
-
-
 
 type ContributionCalendar struct {
 	Login string
 	Total int
 	Weeks []Week
-}
 
+	// Profile data
+	Followers  int
+	Following  int
+	Repos      int
+	TotalStars int
+}
 
 type Week struct {
 	Days []Day
@@ -66,6 +67,20 @@ func (c *Client) FetchContributionCalendar(login string) (*ContributionCalendar,
 		query($login: String!) {
 			user(login: $login) {
 				login
+				followers {
+					totalCount
+				}
+				following {
+					totalCount
+				}
+				repositories {
+					totalCount
+				}
+				repositories(ownerAffiliations: OWNER) {
+					nodes {
+						stargazerCount
+					}
+				}
 				contributionsCollection {
 					contributionCalendar {
 						totalContributions
@@ -136,10 +151,22 @@ func (c *Client) FetchContributionCalendar(login string) (*ContributionCalendar,
 
 	calendar := response.Data.User.ContributionsCollection.ContributionCalendar
 
+	// Calculate total stars across all owned repositories
+	totalStars := 0
+	if response.Data.User.Repositories.Nodes != nil {
+		for _, repo := range response.Data.User.Repositories.Nodes {
+			totalStars += repo.StargazerCount
+		}
+	}
+
 	result := &ContributionCalendar{
-		Login: response.Data.User.Login,
-		Total: calendar.TotalContributions,
-		Weeks: make([]Week, 0, len(calendar.Weeks)),
+		Login:      response.Data.User.Login,
+		Total:      calendar.TotalContributions,
+		Weeks:      make([]Week, 0, len(calendar.Weeks)),
+		Followers:  response.Data.User.Followers.TotalCount,
+		Following:  response.Data.User.Following.TotalCount,
+		Repos:      response.Data.User.RepositoriesTotal.TotalCount,
+		TotalStars: totalStars,
 	}
 
 	for _, githubWeek := range calendar.Weeks {
@@ -160,28 +187,41 @@ func (c *Client) FetchContributionCalendar(login string) (*ContributionCalendar,
 	return result, nil
 }
 
-
 // These structs mirror GitHub's GraphQL response.
 // They stay private to this package so GitHub's API shape doesnt leak into the rest of gheppo
 
 type graphQLResponse struct {
-	Data graphQLData `json:"data"`
-	Errors []graphQLError  `json:"errors"`
+	Data   graphQLData    `json:"data"`
+	Errors []graphQLError `json:"errors"`
 }
 
 type graphQLError struct {
-	Message   string `json:"message"`
-
+	Message string `json:"message"`
 }
 
-
 type graphQLData struct {
-	User   *githubUser    `json:"user"`
+	User *githubUser `json:"user"`
 }
 
 type githubUser struct {
-	Login                  string                  `json:"login"`
+	Login                   string                  `json:"login"`
+	Followers               totalCount              `json:"followers"`
+	Following               totalCount              `json:"following"`
+	RepositoriesTotal       totalCount              `json:"repositories"`
+	Repositories            repositoryConnection    `json:"repositories"`
 	ContributionsCollection contributionsCollection `json:"contributionsCollection"`
+}
+
+type totalCount struct {
+	TotalCount int `json:"totalCount"`
+}
+
+type repositoryConnection struct {
+	Nodes []repository `json:"nodes"`
+}
+
+type repository struct {
+	StargazerCount int `json:"stargazerCount"`
 }
 
 type contributionsCollection struct {
@@ -189,22 +229,18 @@ type contributionsCollection struct {
 }
 
 type contributionCalendar struct {
-	TotalContributions int            `json:"totalContributions"`
-	Weeks              []githubWeek   `json:"weeks"`
+	TotalContributions int          `json:"totalContributions"`
+	Weeks              []githubWeek `json:"weeks"`
 }
 
 type githubWeek struct {
 	ContributionDays []githubDay `json:"contributionDays"`
 }
 
-
 type githubDay struct {
-	Date             string `json:"date"`
+	Date              string `json:"date"`
 	ContributionCount int    `json:"contributionCount"`
 }
 
-
 //we no longer do the assumption that Days[0] is Sunday
 //the architecture is : github graphql -> internal/github -> ContributionsCalendar -> internal/stats -> bucketed contribution data -> internal/render -> terminal
-
-

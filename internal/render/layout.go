@@ -3,14 +3,10 @@ package render
 import (
 	"os"
 	"strconv"
-	"strings"
-	"time"
-
-	"github.com/dexisback/gheppo/internal/stats"
 	"golang.org/x/term"
 )
 
-// Default terminal width when detection fails.
+// Default terminal width and bounds.
 const (
 	DefaultTerminalWidth = 80
 	MinCardWidth         = 46
@@ -34,19 +30,33 @@ func GetTerminalWidth() int {
 	return DefaultTerminalWidth
 }
 
-// LayoutConfig encapsulates all computed geometry for the current render pass.
-type LayoutConfig struct {
+// Layout encapsulates all computed geometry and component dimensions for a render pass.
+type Layout struct {
 	TerminalWidth int
 	CardWidth     int
+	InnerWidth    int
 	LeftMargin    int
-	VisibleWeeks  int
-	GraphWidth    int
-	StatsWidth    int
+
+	// Left Region (Contribution Graph area)
+	LeftWidth    int
+	VisibleWeeks int
+	GraphWidth   int
+	GraphHeight  int // Number of weekday rows (7)
+
+	// Divider
+	DividerWidth int // " │ " spacing (3 characters)
+
+	// Right Region (Stats area)
+	RightWidth int
+	StatsWidth int
 }
 
-// ComputeLayout calculates the responsive layout parameters.
-// The graph should occupy ~70-75% of width, stats ~25-30%.
-func ComputeLayout(termWidth, totalWeeks int) LayoutConfig {
+// LayoutConfig is an alias for Layout to maintain backwards compatibility.
+type LayoutConfig = Layout
+
+// CalculateLayout calculates responsive layout parameters from terminal width and total available weeks.
+// Proportions allocate ~70-75% of content space to the graph and ~25-30% to stats.
+func CalculateLayout(termWidth, totalWeeks int) Layout {
 	if termWidth <= 0 {
 		termWidth = DefaultTerminalWidth
 	}
@@ -66,14 +76,15 @@ func ComputeLayout(termWidth, totalWeeks int) LayoutConfig {
 		leftMargin = (termWidth - cardWidth) / 2
 	}
 
-	// Calculate inside content width (cardWidth - 4 for borders and padding)
-	insideWidth := cardWidth - 4
-	if insideWidth < 30 {
-		insideWidth = 30
+	// Calculate inside content width (cardWidth - 4 for borders and padding: "│ " and " │")
+	innerWidth := cardWidth - 4
+	if innerWidth < 30 {
+		innerWidth = 30
 	}
 
 	// Reserve space for divider: " │ " = 3 characters
-	availableForContent := insideWidth - 3
+	dividerWidth := 3
+	availableForContent := innerWidth - dividerWidth
 	if availableForContent < 20 {
 		availableForContent = 20
 	}
@@ -100,61 +111,22 @@ func ComputeLayout(termWidth, totalWeeks int) LayoutConfig {
 	// Adjust graphWidth to actual used width
 	graphWidth = visibleWeeks * 2
 
-	return LayoutConfig{
+	return Layout{
 		TerminalWidth: termWidth,
 		CardWidth:     cardWidth,
+		InnerWidth:    innerWidth,
 		LeftMargin:    leftMargin,
+		LeftWidth:     graphWidth,
 		VisibleWeeks:  visibleWeeks,
 		GraphWidth:    graphWidth,
+		GraphHeight:   7,
+		DividerWidth:  dividerWidth,
+		RightWidth:    statsWidth,
 		StatsWidth:    statsWidth,
 	}
 }
 
-// BuildMonthHeader creates the aligned month header string matching visible weeks.
-func BuildMonthHeader(weeks [][]stats.Cell, graphWidth int) string {
-	if len(weeks) == 0 || graphWidth <= 0 {
-		return ""
-	}
-
-	monthNames := [...]string{
-		"JAN", "FEB", "MAR", "APR", "MAY", "JUN",
-		"JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
-	}
-
-	chars := make([]byte, graphWidth)
-	for i := range chars {
-		chars[i] = ' '
-	}
-
-	lastMonth := time.Month(0)
-	lastPlacedCol := -10
-
-	for wIdx, week := range weeks {
-		col := wIdx * 2
-		if col+3 > graphWidth {
-			break
-		}
-
-		for _, cell := range week {
-			if cell.Empty || cell.Date.IsZero() {
-				continue
-			}
-
-			currMonth := cell.Date.Month()
-			if currMonth != lastMonth {
-				// Avoid collision with previous month label (ensure spacing between 3-char labels)
-				if col >= lastPlacedCol+5 {
-					label := monthNames[currMonth-1]
-					if col+len(label) <= graphWidth {
-						copy(chars[col:], label)
-						lastPlacedCol = col
-						lastMonth = currMonth
-					}
-				}
-				break
-			}
-		}
-	}
-
-	return strings.TrimRight(string(chars), " ")
+// ComputeLayout is retained for backward compatibility.
+func ComputeLayout(termWidth, totalWeeks int) LayoutConfig {
+	return CalculateLayout(termWidth, totalWeeks)
 }

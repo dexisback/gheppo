@@ -300,3 +300,36 @@ func TestAnimateNonInteractiveFallback(t *testing.T) {
 		t.Errorf("Animate output missing username: %s", buf.String())
 	}
 }
+
+// TestRenderDirect verifies the Render entry point with explicit width.
+func TestRenderDirect(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	summary := &stats.Summary{
+		Login: "directuser",
+		Total: 42,
+	}
+
+	output := Render(summary, 90)
+	if !strings.Contains(output, "@directuser") {
+		t.Errorf("Render() missing username: %q", output)
+	}
+	if !strings.Contains(output, "42 CONTRIBUTIONS") {
+		t.Errorf("Render() missing contributions: %q", output)
+	}
+}
+
+// TestRenderWithTheme verifies rendering with explicit Theme.
+func TestRenderWithTheme(t *testing.T) {
+	summary := &stats.Summary{
+		Login: "themeuser",
+		Total: 10,
+	}
+	layout := CalculateLayout(80, 0)
+	theme := GetTheme(ColorASCII, ThemeDark)
+
+	output := RenderWithTheme(summary, layout, theme)
+	if !strings.Contains(output, "@themeuser") {
+		t.Errorf("RenderWithTheme() missing username: %q", output)
+	}
+}
+

@@ -35,7 +35,10 @@ func RenderStatsPanelWithWidth(s *stats.Summary, theme Theme, maxWidth int) []St
 		year = s.FetchedAt.Year()
 	}
 	yearProgress := CalculateYearProgress()
-	barWidth := 14
+	barWidth := 10
+	if maxWidth >= 30 {
+		barWidth = 12
+	}
 	progressStr, progressVisLen := RenderYearProgress(year, yearProgress, barWidth, theme)
 	rows = append(rows, StatsRow{
 		Content:    progressStr,
@@ -152,7 +155,7 @@ func RenderStatsPanelWithWidth(s *stats.Summary, theme Theme, maxWidth int) []St
 	if theme.Mode == ColorASCII {
 		subDivider = "| "
 	}
-	col1Width := 14
+	col1Width := 13
 
 	// Row 13: Followers & Following labels
 	pad13 := col1Width - len("FOLLOWERS")

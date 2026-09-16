@@ -61,46 +61,35 @@ func CalculateLayout(termWidth, totalWeeks int) Layout {
 		termWidth = DefaultTerminalWidth
 	}
 
-	// Determine card width - use most of terminal but respect max
-	cardWidth := termWidth - 4
-	if cardWidth > MaxCardWidth {
-		cardWidth = MaxCardWidth
-	}
-	if cardWidth < MinCardWidth {
-		cardWidth = MinCardWidth
+	statsWidth := 26
+	dividerWidth := 5
+	if termWidth < 78 {
+		dividerWidth = 3
 	}
 
-	// Horizontal centering margin for wide terminals
-	leftMargin := 0
-	if termWidth > cardWidth {
-		leftMargin = (termWidth - cardWidth) / 2
+	// Budget horizontal margins for breathing room
+	marginBudget := 8
+	if termWidth < 75 {
+		marginBudget = 4
+	} else if termWidth >= 100 {
+		marginBudget = (termWidth * 15) / 100
+		if marginBudget < 10 {
+			marginBudget = 10
+		}
 	}
 
-	// Calculate inside content width (cardWidth - 4 for borders and padding: "│ " and " │")
-	innerWidth := cardWidth - 4
-	if innerWidth < 30 {
-		innerWidth = 30
+	availForGraph := termWidth - marginBudget - statsWidth - dividerWidth
+	if availForGraph < 20 {
+		availForGraph = 20
 	}
 
-	// Reserve space for divider: " │ " = 3 characters
-	dividerWidth := 3
-	availableForContent := innerWidth - dividerWidth
-	if availableForContent < 20 {
-		availableForContent = 20
+	visibleWeeks := availForGraph / 2
+	if visibleWeeks > 52 {
+		visibleWeeks = 52
 	}
-
-	// Graph gets ~70-75% of available content space
-	graphWidth := (availableForContent * 70) / 100
-	statsWidth := availableForContent - graphWidth
-
-	// Ensure stats panel is readable (minimum ~20 chars)
-	if statsWidth < 20 {
-		statsWidth = 20
-		graphWidth = availableForContent - statsWidth
+	if visibleWeeks < 16 && termWidth >= 65 {
+		visibleWeeks = 16
 	}
-
-	// Each week occupies 2 characters ("■ ")
-	visibleWeeks := graphWidth / 2
 	if totalWeeks > 0 && visibleWeeks > totalWeeks {
 		visibleWeeks = totalWeeks
 	}
@@ -108,13 +97,29 @@ func CalculateLayout(termWidth, totalWeeks int) Layout {
 		visibleWeeks = 4
 	}
 
-	// Adjust graphWidth to actual used width
-	graphWidth = visibleWeeks * 2
+	graphWidth := visibleWeeks * 2
+	totalContent := graphWidth + dividerWidth + statsWidth
+
+	leftMargin := 0
+	if termWidth > totalContent {
+		leftMargin = (termWidth - totalContent) / 2
+	}
+	if leftMargin < 0 {
+		leftMargin = 0
+	}
+
+	cardWidth := totalContent + leftMargin*2
+	if cardWidth > termWidth {
+		cardWidth = termWidth
+	}
+	if cardWidth < MinCardWidth {
+		cardWidth = MinCardWidth
+	}
 
 	return Layout{
 		TerminalWidth: termWidth,
 		CardWidth:     cardWidth,
-		InnerWidth:    innerWidth,
+		InnerWidth:    totalContent,
 		LeftMargin:    leftMargin,
 		LeftWidth:     graphWidth,
 		VisibleWeeks:  visibleWeeks,

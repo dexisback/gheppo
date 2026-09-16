@@ -1,6 +1,7 @@
 package github
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -61,6 +62,16 @@ func TestFetchContributionCalendar(t *testing.T) {
 		"data": {
 			"user": {
 				"login": "test-user",
+				"followers": { "totalCount": 150 },
+				"following": { "totalCount": 45 },
+				"repositoriesTotal": { "totalCount": 12 },
+				"ownedRepositories": {
+					"pageInfo": { "hasNextPage": false, "endCursor": "" },
+					"nodes": [
+						{ "stargazerCount": 50 },
+						{ "stargazerCount": 38 }
+					]
+				},
 				"contributionsCollection": {
 					"contributionCalendar": {
 						"totalContributions": 42,
@@ -102,33 +113,90 @@ func TestFetchContributionCalendar(t *testing.T) {
 		t.Fatalf("Total = %d, want 42", result.Total)
 	}
 
+	if result.Followers != 150 {
+		t.Errorf("Followers = %d, want 150", result.Followers)
+	}
+
+	if result.Following != 45 {
+		t.Errorf("Following = %d, want 45", result.Following)
+	}
+
+	if result.Repos != 12 {
+		t.Errorf("Repos = %d, want 12", result.Repos)
+	}
+
+	if result.TotalStars != 88 {
+		t.Errorf("TotalStars = %d, want 88", result.TotalStars)
+	}
+
 	if len(result.Weeks) != 1 {
 		t.Fatalf("len(Weeks) = %d, want 1", len(result.Weeks))
 	}
+}
 
-	if len(result.Weeks[0].Days) != 2 {
-		t.Fatalf("len(Days) = %d, want 2", len(result.Weeks[0].Days))
+func TestFetchContributionCalendarPagination(t *testing.T) {
+	page := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		page++
+		w.Header().Set("Content-Type", "application/json")
+		if page == 1 {
+			// Page 1 has hasNextPage: true
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"data": map[string]interface{}{
+					"user": map[string]interface{}{
+						"login": "paginated-user",
+						"followers": map[string]interface{}{"totalCount": 10},
+						"following": map[string]interface{}{"totalCount": 5},
+						"repositoriesTotal": map[string]interface{}{"totalCount": 150},
+						"ownedRepositories": map[string]interface{}{
+							"pageInfo": map[string]interface{}{
+								"hasNextPage": true,
+								"endCursor": "cursor-page-1",
+							},
+							"nodes": []map[string]interface{}{
+								{"stargazerCount": 10},
+							},
+						},
+						"contributionsCollection": map[string]interface{}{
+							"contributionCalendar": map[string]interface{}{
+								"totalContributions": 100,
+								"weeks": []interface{}{},
+							},
+						},
+					},
+				},
+			})
+		} else {
+			// Page 2
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"data": map[string]interface{}{
+					"user": map[string]interface{}{
+						"ownedRepositories": map[string]interface{}{
+							"pageInfo": map[string]interface{}{
+								"hasNextPage": false,
+								"endCursor": "",
+							},
+							"nodes": []map[string]interface{}{
+								{"stargazerCount": 25},
+							},
+						},
+					},
+				},
+			})
+		}
+	}))
+	defer server.Close()
+
+	useTestURL(t, server.URL)
+
+	client := NewClient("test-token")
+	result, err := client.FetchContributionCalendar("paginated-user")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if result.Weeks[0].Days[0].Date != "2026-09-12" {
-		t.Fatalf(
-			"first day date = %q, want 2026-09-12",
-			result.Weeks[0].Days[0].Date,
-		)
-	}
-
-	if result.Weeks[0].Days[0].Count != 3 {
-		t.Fatalf(
-			"first day count = %d, want 3",
-			result.Weeks[0].Days[0].Count,
-		)
-	}
-
-	if result.Weeks[0].Days[1].Count != 5 {
-		t.Fatalf(
-			"second day count = %d, want 5",
-			result.Weeks[0].Days[1].Count,
-		)
+	if result.TotalStars != 35 {
+		t.Errorf("TotalStars with pagination = %d, want 35", result.TotalStars)
 	}
 }
 

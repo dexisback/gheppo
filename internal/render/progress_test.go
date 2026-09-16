@@ -35,3 +35,20 @@ func TestRenderYearProgressBar(t *testing.T) {
 		t.Errorf("TrueColor 50%% 10-char bar = %q, want 5 filled blocks and 5 empty blocks", barTC)
 	}
 }
+
+func TestRenderYearProgress(t *testing.T) {
+	theme := GetTheme(ColorASCII, ThemeDark)
+	formatted, visLen := RenderYearProgress(2026, 70, 15, theme)
+
+	if !strings.Contains(formatted, "2026") {
+		t.Errorf("missing year in progress: %q", formatted)
+	}
+	if !strings.Contains(formatted, "70%") {
+		t.Errorf("missing percentage in progress: %q", formatted)
+	}
+	expectedLen := 4 + 1 + 15 + 1 + 3 // 2026 (4) + space (1) + bar (15) + space (1) + 70% (3) = 24
+	if visLen != expectedLen {
+		t.Errorf("visLen = %d, want %d", visLen, expectedLen)
+	}
+}
+

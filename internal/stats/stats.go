@@ -281,18 +281,17 @@ func sameDay(a, b time.Time) bool {
 }
 
 // findBestDay returns the date and count of the day with the highest contribution count.
-// If multiple days tie, the most recent is returned.
+// If multiple days tie, the most recent is returned. If all days are zero, zero values are returned.
 func findBestDay(days []parsedDay) (time.Time, int) {
 	if len(days) == 0 {
 		return time.Time{}, 0
 	}
 
-	bestDay := days[0].Date
-	bestCount := days[0].Count
+	var bestDay time.Time
+	bestCount := 0
 
-	for _, day := range days[1:] {
-		// Use >= to prefer the most recent day when counts are equal
-		if day.Count >= bestCount {
+	for _, day := range days {
+		if day.Count >= bestCount && day.Count > 0 {
 			bestDay = day.Date
 			bestCount = day.Count
 		}
@@ -300,3 +299,4 @@ func findBestDay(days []parsedDay) (time.Time, int) {
 
 	return bestDay, bestCount
 }
+

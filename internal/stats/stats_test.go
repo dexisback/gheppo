@@ -467,3 +467,57 @@ func TestCalculateStreaksHandlesConsecutiveDays(t *testing.T) {
 		t.Fatalf("expected longest streak 3, got %d", longest)
 	}
 }
+
+func TestFindBestDay(t *testing.T) {
+	days := []parsedDay{
+		{Date: time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC), Count: 10},
+		{Date: time.Date(2026, 5, 11, 0, 0, 0, 0, time.UTC), Count: 25},
+		{Date: time.Date(2026, 5, 12, 0, 0, 0, 0, time.UTC), Count: 25}, // Tie: most recent should win
+		{Date: time.Date(2026, 5, 13, 0, 0, 0, 0, time.UTC), Count: 5},
+	}
+
+	bestDay, bestCount := findBestDay(days)
+	if bestCount != 25 {
+		t.Errorf("bestCount = %d, want 25", bestCount)
+	}
+	if !sameDay(bestDay, time.Date(2026, 5, 12, 0, 0, 0, 0, time.UTC)) {
+		t.Errorf("bestDay = %v, want 2026-05-12", bestDay)
+	}
+}
+
+func TestFindBestDayZeroContributions(t *testing.T) {
+	days := []parsedDay{
+		{Date: time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC), Count: 0},
+		{Date: time.Date(2026, 5, 11, 0, 0, 0, 0, time.UTC), Count: 0},
+	}
+
+	bestDay, bestCount := findBestDay(days)
+	if bestCount != 0 {
+		t.Errorf("bestCount = %d, want 0", bestCount)
+	}
+	if !bestDay.IsZero() {
+		t.Errorf("bestDay = %v, want zero time", bestDay)
+	}
+}
+
+func TestDailyAverageCalculation(t *testing.T) {
+	cal := &github.ContributionCalendar{
+		Login: "test-user",
+		Total: 30,
+		Weeks: []github.Week{
+			{
+				Days: []github.Day{
+					{Date: "2026-09-01", Count: 10},
+					{Date: "2026-09-02", Count: 10},
+					{Date: "2026-09-03", Count: 10},
+				},
+			},
+		},
+	}
+
+	summary := Summarize(cal)
+	if summary.DailyAverage != 10.0 {
+		t.Errorf("DailyAverage = %f, want 10.0", summary.DailyAverage)
+	}
+}
+

@@ -1,8 +1,10 @@
 package render
 
 import (
+	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // CalculateYearProgress returns the percentage of the current calendar year elapsed (0-100).
@@ -30,8 +32,8 @@ func CalculateYearProgressAt(now time.Time) int {
 	return percentage
 }
 
-// RenderYearProgressBar builds an ANSI-styled horizontal progress bar for year completion.
-func RenderYearProgressBar(percentage, width int, theme Theme) string {
+// RenderSegmentedProgressBar builds a segmented, terminal-native progress bar.
+func RenderSegmentedProgressBar(percentage, width int, theme Theme) string {
 	if width < 1 {
 		width = 10
 	}
@@ -40,7 +42,6 @@ func RenderYearProgressBar(percentage, width int, theme Theme) string {
 	if filled > width {
 		filled = width
 	}
-
 	unfilled := width - filled
 
 	var bar strings.Builder
@@ -59,13 +60,14 @@ func RenderYearProgressBar(percentage, width int, theme Theme) string {
 		return bar.String()
 	}
 
-	// Colored version
+	// High contrast segmented presentation
 	bar.WriteString(theme.ActivityHigh)
 	for i := 0; i < filled; i++ {
 		bar.WriteString(fillChar)
 	}
 	bar.WriteString(theme.Reset)
-	bar.WriteString(theme.Muted)
+
+	bar.WriteString(theme.EmptyCell)
 	for i := 0; i < unfilled; i++ {
 		bar.WriteString(emptyChar)
 	}
@@ -74,11 +76,34 @@ func RenderYearProgressBar(percentage, width int, theme Theme) string {
 	return bar.String()
 }
 
+// RenderYearProgress renders the complete "YEAR [BAR] PERCENTAGE" indicator on a common baseline.
+func RenderYearProgress(year, percentage, barWidth int, theme Theme) (string, int) {
+	yearStr := fmt.Sprintf("%d", year)
+	pctStr := fmt.Sprintf("%d%%", percentage)
+
+	bar := RenderSegmentedProgressBar(percentage, barWidth, theme)
+
+	// Visible length: year (4) + space (1) + barWidth + space (1) + len(pctStr)
+	visLen := utf8.RuneCountInString(yearStr) + 1 + barWidth + 1 + utf8.RuneCountInString(pctStr)
+
+	formatted := fmt.Sprintf("%s%s%s %s %s%s%s",
+		theme.Secondary, yearStr, theme.Reset,
+		bar,
+		theme.Primary, pctStr, theme.Reset,
+	)
+
+	return formatted, visLen
+}
+
 // Backward compatibility helpers
 func calculateYearProgress() int {
 	return CalculateYearProgress()
 }
 
+func RenderYearProgressBar(percentage, width int, theme Theme) string {
+	return RenderSegmentedProgressBar(percentage, width, theme)
+}
+
 func renderYearProgressBar(percentage, width int, mode ColorMode, theme ThemeMode) string {
-	return RenderYearProgressBar(percentage, width, GetTheme(mode, theme))
+	return RenderSegmentedProgressBar(percentage, width, GetTheme(mode, theme))
 }

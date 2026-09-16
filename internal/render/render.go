@@ -116,53 +116,47 @@ func Compose(
 
 	addEmptyLine()
 
-	// === WORDMARK + YEAR ===
+	// === HEADER LINE: WORDMARK + YEAR PROGRESS BAR ===
 	wordmark := GetWordmark(theme.Mode)
 	year := time.Now().Year()
 	if !s.FetchedAt.IsZero() {
 		year = s.FetchedAt.Year()
 	}
-	yearStr := fmt.Sprintf("%d", year)
+	yearProgress := CalculateYearProgress()
 
-	headerVisLen := utf8.RuneCountInString(wordmark) + utf8.RuneCountInString(yearStr)
-	if headerVisLen <= innerWidth {
-		spacing := innerWidth - headerVisLen
-		headerContent := fmt.Sprintf("%s%s%s%s%s%s%s",
+	// Bar width adapts to right stats panel width: statsWidth - 9 (year: 4, space: 1, space: 1, pct: 3)
+	barWidth := layout.StatsWidth - 9
+	if barWidth < 5 {
+		barWidth = 5
+	}
+	if barWidth > 25 {
+		barWidth = 25
+	}
+
+	progressStr, progressVisLen := RenderYearProgress(year, yearProgress, barWidth, theme)
+	wordmarkVisLen := utf8.RuneCountInString(wordmark)
+
+	if wordmarkVisLen+progressVisLen+2 <= innerWidth {
+		spacing := innerWidth - wordmarkVisLen - progressVisLen
+		headerContent := fmt.Sprintf("%s%s%s%s%s",
 			theme.Primary, wordmark, theme.Reset,
 			strings.Repeat(" ", spacing),
-			theme.Secondary, yearStr, theme.Reset,
+			progressStr,
 		)
 		addLine(headerContent, innerWidth)
 	} else {
-		addLine(fmt.Sprintf("%s%s%s", theme.Primary, wordmark, theme.Reset), utf8.RuneCountInString(wordmark))
-		addLine(fmt.Sprintf("%s%s%s", theme.Secondary, yearStr, theme.Reset), utf8.RuneCountInString(yearStr))
+		addLine(fmt.Sprintf("%s%s%s", theme.Primary, wordmark, theme.Reset), wordmarkVisLen)
+		addLine(progressStr, progressVisLen)
 	}
 
-	// === TOTAL CONTRIBUTIONS + YEAR PROGRESS BAR ===
+	// === SUBHEADER: TOTAL CONTRIBUTIONS ===
 	var totalStr string
 	if s.Total == 1 {
 		totalStr = "1 CONTRIBUTION"
 	} else {
 		totalStr = fmt.Sprintf("%s CONTRIBUTIONS", formatNumber(s.Total))
 	}
-
-	yearProgress := CalculateYearProgress()
-	progressBar := RenderYearProgressBar(yearProgress, 15, theme)
-	progressStr := fmt.Sprintf("%s %d%%", progressBar, yearProgress)
-	actualProgressLen := 15 + 1 + len(fmt.Sprintf("%d%%", yearProgress))
-
-	if utf8.RuneCountInString(totalStr)+actualProgressLen <= innerWidth {
-		spacing := innerWidth - utf8.RuneCountInString(totalStr) - actualProgressLen
-		subHeaderContent := fmt.Sprintf("%s%s%s%s%s%s",
-			theme.Primary, totalStr, theme.Reset,
-			strings.Repeat(" ", spacing),
-			progressStr, theme.Reset,
-		)
-		addLine(subHeaderContent, innerWidth)
-	} else {
-		addLine(fmt.Sprintf("%s%s%s", theme.Primary, totalStr, theme.Reset), utf8.RuneCountInString(totalStr))
-		addLine(progressStr+theme.Reset, actualProgressLen)
-	}
+	addLine(fmt.Sprintf("%s%s%s", theme.Primary, totalStr, theme.Reset), utf8.RuneCountInString(totalStr))
 
 	addEmptyLine()
 

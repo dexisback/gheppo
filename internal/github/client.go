@@ -1,6 +1,5 @@
-//this page's only job is to talking to github api  -- sending the GraphQL request -> getting raw JSON back -> decoding it into go structs
-//its job is NOT to know about contribution buckets, calendards with meaning or rewndering. (that layer is internal/stats)
-
+// Package github communicates with GitHub's GraphQL API to retrieve
+// contribution calendar and user profile metadata.
 package github
 
 import (
@@ -12,7 +11,6 @@ import (
 	"time"
 )
 
-// const graphqlURL= "https://api.github.com/graphql"
 var graphqlURL = "https://api.github.com/graphql"
 
 type Client struct {
@@ -29,14 +27,13 @@ func NewClient(token string) *Client {
 	}
 }
 
-// ContributionCalendar is Gheppo's internal representation of github contri calendar
-
+// ContributionCalendar represents GitHub contribution calendar and profile metadata.
 type ContributionCalendar struct {
 	Login string
 	Total int
 	Weeks []Week
 
-	// Profile data
+	// Profile metadata
 	Followers  int
 	Following  int
 	Repos      int
@@ -52,8 +49,7 @@ type Day struct {
 	Count int
 }
 
-//----
-
+// FetchContributionCalendar fetches the contribution calendar and profile metadata for a user.
 func (c *Client) FetchContributionCalendar(login string) (*ContributionCalendar, error) {
 	if c.token == "" {
 		return nil, errors.New("GitHub token is empty")
@@ -73,10 +69,14 @@ func (c *Client) FetchContributionCalendar(login string) (*ContributionCalendar,
 				following {
 					totalCount
 				}
-				repositories {
+				repositoriesTotal: repositories {
 					totalCount
 				}
-				repositories(ownerAffiliations: OWNER) {
+				ownedRepositories: repositories(first: 100, ownerAffiliations: OWNER) {
+					pageInfo {
+						hasNextPage
+						endCursor
+					}
 					nodes {
 						stargazerCount
 					}
@@ -104,7 +104,6 @@ func (c *Client) FetchContributionCalendar(login string) (*ContributionCalendar,
 	}{
 		Query: query,
 	}
-
 	requestBody.Variables.Login = login
 
 	body, err := json.Marshal(requestBody)
@@ -136,7 +135,6 @@ func (c *Client) FetchContributionCalendar(login string) (*ContributionCalendar,
 	}
 
 	var response graphQLResponse
-
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return nil, fmt.Errorf("decode GitHub response: %w", err)
 	}
@@ -151,12 +149,33 @@ func (c *Client) FetchContributionCalendar(login string) (*ContributionCalendar,
 
 	calendar := response.Data.User.ContributionsCollection.ContributionCalendar
 
-	// Calculate total stars across all owned repositories
+	// Calculate total stars across first page of owned repositories
 	totalStars := 0
-	if response.Data.User.Repositories.Nodes != nil {
-		for _, repo := range response.Data.User.Repositories.Nodes {
+	if response.Data.User.OwnedRepositories.Nodes != nil {
+		for _, repo := range response.Data.User.OwnedRepositories.Nodes {
 			totalStars += repo.StargazerCount
 		}
+	}
+
+	// Handle pagination if user has > 100 repositories
+	cursor := response.Data.User.OwnedRepositories.PageInfo.EndCursor
+	hasNext := response.Data.User.OwnedRepositories.PageInfo.HasNextPage
+	for hasNext && cursor != "" {
+		nextPage, err := c.fetchNextRepoPage(login, cursor)
+		if err != nil {
+			break // gracefully keep accumulated stars
+		}
+		for _, repo := range nextPage.Nodes {
+			totalStars += repo.StargazerCount
+		}
+		cursor = nextPage.PageInfo.EndCursor
+		hasNext = nextPage.PageInfo.HasNextPage
+	}
+
+	// Determine repository count from repositoriesTotal or fallback to length
+	repoCount := response.Data.User.RepositoriesTotal.TotalCount
+	if repoCount == 0 && response.Data.User.RepositoriesFallback.TotalCount > 0 {
+		repoCount = response.Data.User.RepositoriesFallback.TotalCount
 	}
 
 	result := &ContributionCalendar{
@@ -165,7 +184,7 @@ func (c *Client) FetchContributionCalendar(login string) (*ContributionCalendar,
 		Weeks:      make([]Week, 0, len(calendar.Weeks)),
 		Followers:  response.Data.User.Followers.TotalCount,
 		Following:  response.Data.User.Following.TotalCount,
-		Repos:      response.Data.User.RepositoriesTotal.TotalCount,
+		Repos:      repoCount,
 		TotalStars: totalStars,
 	}
 
@@ -187,9 +206,72 @@ func (c *Client) FetchContributionCalendar(login string) (*ContributionCalendar,
 	return result, nil
 }
 
-// These structs mirror GitHub's GraphQL response.
-// They stay private to this package so GitHub's API shape doesnt leak into the rest of gheppo
+func (c *Client) fetchNextRepoPage(login, cursor string) (*repositoryConnection, error) {
+	query := `
+		query($login: String!, $after: String!) {
+			user(login: $login) {
+				ownedRepositories: repositories(first: 100, ownerAffiliations: OWNER, after: $after) {
+					pageInfo {
+						hasNextPage
+						endCursor
+					}
+					nodes {
+						stargazerCount
+					}
+				}
+			}
+		}
+	`
 
+	requestBody := struct {
+		Query     string `json:"query"`
+		Variables struct {
+			Login string `json:"login"`
+			After string `json:"after"`
+		} `json:"variables"`
+	}{
+		Query: query,
+	}
+	requestBody.Variables.Login = login
+	requestBody.Variables.After = cursor
+
+	body, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, graphqlURL, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("status %s", resp.Status)
+	}
+
+	var response graphQLResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, err
+	}
+
+	if response.Data.User == nil {
+		return nil, errors.New("user nil in next page")
+	}
+
+	return &response.Data.User.OwnedRepositories, nil
+}
+
+// GraphQL response structs
 type graphQLResponse struct {
 	Data   graphQLData    `json:"data"`
 	Errors []graphQLError `json:"errors"`
@@ -207,8 +289,9 @@ type githubUser struct {
 	Login                   string                  `json:"login"`
 	Followers               totalCount              `json:"followers"`
 	Following               totalCount              `json:"following"`
-	RepositoriesTotal       totalCount              `json:"repositories"`
-	Repositories            repositoryConnection    `json:"repositories"`
+	RepositoriesTotal       totalCount              `json:"repositoriesTotal"`
+	RepositoriesFallback    totalCount              `json:"repositories"`
+	OwnedRepositories       repositoryConnection    `json:"ownedRepositories"`
 	ContributionsCollection contributionsCollection `json:"contributionsCollection"`
 }
 
@@ -217,7 +300,13 @@ type totalCount struct {
 }
 
 type repositoryConnection struct {
-	Nodes []repository `json:"nodes"`
+	PageInfo pageInfo     `json:"pageInfo"`
+	Nodes    []repository `json:"nodes"`
+}
+
+type pageInfo struct {
+	HasNextPage bool   `json:"hasNextPage"`
+	EndCursor   string `json:"endCursor"`
 }
 
 type repository struct {
@@ -241,6 +330,3 @@ type githubDay struct {
 	Date              string `json:"date"`
 	ContributionCount int    `json:"contributionCount"`
 }
-
-//we no longer do the assumption that Days[0] is Sunday
-//the architecture is : github graphql -> internal/github -> ContributionsCalendar -> internal/stats -> bucketed contribution data -> internal/render -> terminal

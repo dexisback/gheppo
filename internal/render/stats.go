@@ -3,6 +3,7 @@ package render
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/dexisback/gheppo/internal/stats"
 )
@@ -28,15 +29,23 @@ func RenderStatsPanel(s *stats.Summary, theme Theme) []StatsRow {
 		Content:    theme.Muted + "ACTIVITY" + theme.Reset,
 		VisibleLen: 8,
 	})
-	rows = append(rows, StatsRow{Content: "", VisibleLen: 0})
+
+	// Total Contributions in Activity
+	totalStr := formatNumber(s.Total)
+	totalLabel := "CONTRIBUTIONS"
+	if s.Total == 1 {
+		totalLabel = "CONTRIBUTION"
+	}
+	rows = append(rows, StatsRow{
+		Content:    theme.Primary + theme.Bold + totalStr + theme.Reset + " " + theme.Secondary + totalLabel + theme.Reset,
+		VisibleLen: len(totalStr) + 1 + len(totalLabel),
+	})
 
 	// Longest streak
 	streakStr := formatNumber(s.LongestStreak)
-	streakLabel := "LONGEST STREAK"
+	streakLabel := "DAYS"
 	if s.LongestStreak == 1 {
 		streakLabel = "DAY"
-	} else {
-		streakLabel = "DAYS"
 	}
 	rows = append(rows, StatsRow{
 		Content:    theme.ActivityHigh + theme.Bold + streakStr + theme.Reset + " " + theme.Secondary + streakLabel + theme.Reset,
@@ -46,16 +55,18 @@ func RenderStatsPanel(s *stats.Summary, theme Theme) []StatsRow {
 		Content:    theme.Secondary + "LONGEST STREAK" + theme.Reset,
 		VisibleLen: 14,
 	})
+
+	// Empty line separator between metric pairs
 	rows = append(rows, StatsRow{Content: "", VisibleLen: 0})
 
 	// Best day
 	if !s.BestDay.IsZero() && s.BestDayCount > 0 {
-		bestDayStr := s.BestDay.Format("Jan 02")
-		bestDayStr = strings.ToUpper(bestDayStr)
-		bestStr := fmt.Sprintf("%s · %s", bestDayStr, formatNumber(s.BestDayCount))
+		bestDayStr := strings.ToUpper(s.BestDay.Format("Jan 02"))
+		bestCountStr := formatNumber(s.BestDayCount)
+		bestCombined := bestDayStr + " · " + bestCountStr
 		rows = append(rows, StatsRow{
-			Content:    theme.Primary + theme.Bold + bestStr + theme.Reset,
-			VisibleLen: len(bestStr),
+			Content:    theme.Primary + theme.Bold + bestCombined + theme.Reset,
+			VisibleLen: len(bestCombined),
 		})
 		rows = append(rows, StatsRow{
 			Content:    theme.Secondary + "BEST DAY" + theme.Reset,
@@ -65,69 +76,61 @@ func RenderStatsPanel(s *stats.Summary, theme Theme) []StatsRow {
 	}
 
 	// Daily average
-	if s.DailyAverage > 0 {
-		avgStr := fmt.Sprintf("%s / DAY", formatFloat(s.DailyAverage))
-		rows = append(rows, StatsRow{
-			Content:    theme.Primary + avgStr + theme.Reset,
-			VisibleLen: len(avgStr),
-		})
-		rows = append(rows, StatsRow{
-			Content:    theme.Secondary + "DAILY AVERAGE" + theme.Reset,
-			VisibleLen: 13,
-		})
-		rows = append(rows, StatsRow{Content: "", VisibleLen: 0})
-	}
+	avgStr := fmt.Sprintf("%s / DAY", formatFloat(s.DailyAverage))
+	rows = append(rows, StatsRow{
+		Content:    theme.Primary + theme.Bold + avgStr + theme.Reset,
+		VisibleLen: len(avgStr),
+	})
+	rows = append(rows, StatsRow{
+		Content:    theme.Secondary + "DAILY AVERAGE" + theme.Reset,
+		VisibleLen: 13,
+	})
+
+	// Empty line before profile
+	rows = append(rows, StatsRow{Content: "", VisibleLen: 0})
 
 	// === PROFILE SECTION ===
 	rows = append(rows, StatsRow{
 		Content:    theme.Muted + "PROFILE" + theme.Reset,
 		VisibleLen: 7,
 	})
-	rows = append(rows, StatsRow{Content: "", VisibleLen: 0})
 
-	// Username
+	// Username as identity anchor
 	username := "@" + s.Login
 	rows = append(rows, StatsRow{
 		Content:    theme.Primary + theme.Bold + username + theme.Reset,
 		VisibleLen: len(username),
 	})
+
 	rows = append(rows, StatsRow{Content: "", VisibleLen: 0})
 
 	// Followers
-	if s.Followers > 0 {
-		followersStr := fmt.Sprintf("%s FOLLOWERS", formatNumber(s.Followers))
-		rows = append(rows, StatsRow{
-			Content:    theme.Primary + followersStr + theme.Reset,
-			VisibleLen: len(followersStr),
-		})
-	}
+	followersStr := fmt.Sprintf("%s FOLLOWERS", formatNumber(s.Followers))
+	rows = append(rows, StatsRow{
+		Content:    theme.Secondary + followersStr + theme.Reset,
+		VisibleLen: utf8.RuneCountInString(followersStr),
+	})
 
 	// Following
-	if s.Following > 0 {
-		followingStr := fmt.Sprintf("%s FOLLOWING", formatNumber(s.Following))
-		rows = append(rows, StatsRow{
-			Content:    theme.Secondary + followingStr + theme.Reset,
-			VisibleLen: len(followingStr),
-		})
-	}
+	followingStr := fmt.Sprintf("%s FOLLOWING", formatNumber(s.Following))
+	rows = append(rows, StatsRow{
+		Content:    theme.Secondary + followingStr + theme.Reset,
+		VisibleLen: utf8.RuneCountInString(followingStr),
+	})
 
 	// Repositories
-	if s.Repos > 0 {
-		reposStr := fmt.Sprintf("%s REPOSITORIES", formatNumber(s.Repos))
-		rows = append(rows, StatsRow{
-			Content:    theme.Secondary + reposStr + theme.Reset,
-			VisibleLen: len(reposStr),
-		})
-	}
+	reposStr := fmt.Sprintf("%s REPOSITORIES", formatNumber(s.Repos))
+	rows = append(rows, StatsRow{
+		Content:    theme.Secondary + reposStr + theme.Reset,
+		VisibleLen: utf8.RuneCountInString(reposStr),
+	})
 
 	// Total stars
-	if s.TotalStars > 0 {
-		starsStr := fmt.Sprintf("★ %s TOTAL STARS", formatNumber(s.TotalStars))
-		rows = append(rows, StatsRow{
-			Content:    theme.ActivityHigh + starsStr + theme.Reset,
-			VisibleLen: len(starsStr),
-		})
-	}
+	starsStr := fmt.Sprintf("★ %s TOTAL STARS", formatNumber(s.TotalStars))
+	rows = append(rows, StatsRow{
+		Content:    theme.ActivityHigh + starsStr + theme.Reset,
+		VisibleLen: utf8.RuneCountInString(starsStr),
+	})
 
 	return rows
 }

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/dexisback/gheppo/internal/stats"
 )
 
@@ -57,14 +58,14 @@ func RenderWithThemeAndState(s *stats.Summary, layout Layout, theme Theme, wordm
 		return ""
 	}
 
-	// 1. Prepare components
+	// 1. Prepare visual components
 	graph := NewContributionGraph(s.Grid, layout.VisibleWeeks)
 	graphConfig := DefaultGraphConfig()
 	graphRows := RenderContributionGraph(graph, theme, graphConfig)
 	monthHeader := RenderMonthHeader(graph.Weeks, layout.GraphWidth)
 	statsRows := RenderStatsPanelWithWidth(s, theme, layout.StatsWidth)
 
-	// 2. Compose into clean dashboard matching Image 3
+	// 2. Compose into explicit rectangular regions matching Image 3
 	return ComposeWithState(s, layout, theme, graphRows, monthHeader, statsRows, wordmarkState)
 }
 
@@ -90,6 +91,11 @@ func ComposeWithState(
 	statsRows []StatsRow,
 	wordmarkState WordmarkState,
 ) string {
+	// If terminal is too narrow to display two columns side by side (< 65 cols), use compact stacked composition
+	if layout.TerminalWidth < 65 {
+		return composeStacked(s, layout, theme, graphRows, monthHeader, statsRows, wordmarkState)
+	}
+
 	var verticalBar string
 	if theme.Mode == ColorASCII {
 		verticalBar = "|"
@@ -97,21 +103,10 @@ func ComposeWithState(
 		verticalBar = "│"
 	}
 
-	margin := "  "
-	if layout.LeftMargin >= 0 {
-		margin = strings.Repeat(" ", layout.LeftMargin)
-	}
+	// === 1. BUILD LEFT RECTANGULAR REGION (17 ROWS) ===
+	leftLines := make([]string, 17)
 
-	// If terminal is too narrow to display two columns side by side (< 65 cols), use compact stacked composition
-	if layout.TerminalWidth < 65 {
-		return composeStacked(s, layout, theme, graphRows, monthHeader, statsRows, wordmarkState)
-	}
-
-	// === 1. PREPARE 17 LEFT-SIDE ROWS ===
-	leftRows := make([]string, 17)
-	leftVisLens := make([]int, 17)
-
-	// Wordmark on rows 0, 1, 2
+	// Rows 0..2: Wordmark
 	wordmarkWidth := layout.GraphWidth
 	if wordmarkWidth > 46 {
 		wordmarkWidth = 46
@@ -119,14 +114,18 @@ func ComposeWithState(
 	wordmarkLines, wordmarkVisLen := RenderWordmarkWithStateAndWidth(theme, wordmarkState, wordmarkWidth)
 	for r := 0; r < 3; r++ {
 		if r < len(wordmarkLines) {
-			leftRows[r] = wordmarkLines[r]
-			leftVisLens[r] = wordmarkVisLen
+			pad := layout.GraphWidth - wordmarkVisLen
+			if pad < 0 {
+				pad = 0
+			}
+			leftLines[r] = wordmarkLines[r] + strings.Repeat(" ", pad)
+		} else {
+			leftLines[r] = strings.Repeat(" ", layout.GraphWidth)
 		}
 	}
 
 	// Row 3: Empty
-	leftRows[3] = ""
-	leftVisLens[3] = 0
+	leftLines[3] = strings.Repeat(" ", layout.GraphWidth)
 
 	// Row 4: Total Contributions
 	numStr := formatNumber(s.Total)
@@ -134,85 +133,99 @@ func ComposeWithState(
 	if s.Total == 1 {
 		labelStr = "CONTRIBUTION"
 	}
+	var totalFormatted string
 	if theme.Mode == ColorASCII {
-		leftRows[4] = fmt.Sprintf("%s %s", numStr, labelStr)
+		totalFormatted = fmt.Sprintf("%s %s", numStr, labelStr)
 	} else {
-		leftRows[4] = fmt.Sprintf("%s%s%s%s %s%s%s",
+		totalFormatted = fmt.Sprintf("%s%s%s%s %s%s%s",
 			theme.Bold, theme.Primary, numStr, theme.Reset,
 			theme.Secondary, labelStr, theme.Reset,
 		)
 	}
-	leftVisLens[4] = len(numStr) + 1 + len(labelStr)
+	padTotal := layout.GraphWidth - (len(numStr) + 1 + len(labelStr))
+	if padTotal < 0 {
+		padTotal = 0
+	}
+	leftLines[4] = totalFormatted + strings.Repeat(" ", padTotal)
 
 	// Row 5: Empty
-	leftRows[5] = ""
-	leftVisLens[5] = 0
+	leftLines[5] = strings.Repeat(" ", layout.GraphWidth)
 
 	// Row 6: Month Header
 	if monthHeader != "" {
+		var mhFormatted string
 		if theme.Mode == ColorASCII {
-			leftRows[6] = monthHeader
+			mhFormatted = monthHeader
 		} else {
-			leftRows[6] = theme.Secondary + monthHeader + theme.Reset
+			mhFormatted = theme.Secondary + monthHeader + theme.Reset
 		}
-		leftVisLens[6] = utf8.RuneCountInString(monthHeader)
+		padMH := layout.GraphWidth - utf8.RuneCountInString(monthHeader)
+		if padMH < 0 {
+			padMH = 0
+		}
+		leftLines[6] = mhFormatted + strings.Repeat(" ", padMH)
 	} else {
-		leftRows[6] = ""
-		leftVisLens[6] = 0
+		leftLines[6] = strings.Repeat(" ", layout.GraphWidth)
 	}
 
-	// Rows 7..13: 7 Graph Rows (Sun..Sat)
+	// Rows 7..13: Graph Rows (7 weekday rows)
 	for w := 0; w < 7; w++ {
 		if w < len(graphRows) {
-			leftRows[7+w] = graphRows[w]
-			leftVisLens[7+w] = layout.GraphWidth
+			leftLines[7+w] = graphRows[w]
+		} else {
+			leftLines[7+w] = strings.Repeat(" ", layout.GraphWidth)
 		}
 	}
 
 	// Rows 14..16: Empty
-	leftRows[14] = ""
-	leftVisLens[14] = 0
-	leftRows[15] = ""
-	leftVisLens[15] = 0
-	leftRows[16] = ""
-	leftVisLens[16] = 0
+	leftLines[14] = strings.Repeat(" ", layout.GraphWidth)
+	leftLines[15] = strings.Repeat(" ", layout.GraphWidth)
+	leftLines[16] = strings.Repeat(" ", layout.GraphWidth)
 
-	// === 2. ASSEMBLE PARALLEL ROWS WITH VERTICAL DIVIDER ===
+	leftRegion := strings.Join(leftLines, "\n")
+
+	// === 2. BUILD DIVIDER REGION (17 ROWS) ===
+	dividerCell := theme.Border + verticalBar + theme.Reset
+	gapDivider := "  " + dividerCell + "  "
+	if layout.DividerWidth <= 3 {
+		gapDivider = " " + dividerCell + " "
+	}
+	dividerLines := make([]string, 17)
+	for i := 0; i < 17; i++ {
+		dividerLines[i] = gapDivider
+	}
+	dividerRegion := strings.Join(dividerLines, "\n")
+
+	// === 3. BUILD RIGHT RECTANGULAR REGION (17 ROWS) ===
 	totalRows := 17
 	if len(statsRows) > totalRows {
 		totalRows = len(statsRows)
 	}
 
-	divider := theme.Border + verticalBar + theme.Reset
-	gapDivider := "  " + divider + "  "
-	if layout.DividerWidth <= 3 {
-		gapDivider = " " + divider + " "
-	}
-
-	var lines []string
+	rightLines := make([]string, totalRows)
 	for i := 0; i < totalRows; i++ {
-		var leftContent string
-		var leftVis int
-		if i < len(leftRows) {
-			leftContent = leftRows[i]
-			leftVis = leftVisLens[i]
-		}
-		padLeft := layout.GraphWidth - leftVis
-		if padLeft < 0 {
-			padLeft = 0
-		}
-		leftPart := leftContent + strings.Repeat(" ", padLeft)
-
-		var rightPart string
 		if i < len(statsRows) {
-			rightPart = statsRows[i].Content
+			rightLines[i] = statsRows[i].Content
+		} else {
+			rightLines[i] = ""
 		}
+	}
+	rightRegion := strings.Join(rightLines, "\n")
 
-		line := margin + leftPart + gapDivider + rightPart
-		lines = append(lines, line)
+	// === 4. JOIN REGIONS HORIZONTALLY WITH LIP GLOSS ===
+	joined := lipgloss.JoinHorizontal(lipgloss.Top, leftRegion, dividerRegion, rightRegion)
+
+	// === 5. APPLY LEFT MARGIN ===
+	if layout.LeftMargin > 0 {
+		marginStr := strings.Repeat(" ", layout.LeftMargin)
+		lines := strings.Split(joined, "\n")
+		for i := range lines {
+			lines[i] = marginStr + lines[i]
+		}
+		joined = strings.Join(lines, "\n")
 	}
 
-	return strings.Join(lines, "\n")
+	return joined
 }
 
 func composeStacked(
@@ -229,17 +242,12 @@ func composeStacked(
 		margin = strings.Repeat(" ", layout.LeftMargin)
 	}
 
-	var lines []string
-	addLine := func(c string) {
-		lines = append(lines, margin+c)
-	}
+	var sections []string
 
 	// 1. Wordmark
 	availW := layout.TerminalWidth - len(margin)
 	wLines, _ := RenderWordmarkWithStateAndWidth(theme, wordmarkState, availW)
-	for _, l := range wLines {
-		addLine(l)
-	}
+	sections = append(sections, strings.Join(wLines, "\n"))
 
 	// 2. Year Progress
 	year := 2026
@@ -247,7 +255,7 @@ func composeStacked(
 		year = s.FetchedAt.Year()
 	}
 	progressStr, _ := RenderYearProgress(year, CalculateYearProgress(), 8, theme)
-	addLine(progressStr)
+	sections = append(sections, progressStr)
 
 	// 3. Total
 	numStr := formatNumber(s.Total)
@@ -256,29 +264,41 @@ func composeStacked(
 		labelStr = "CONTRIBUTION"
 	}
 	if theme.Mode == ColorASCII {
-		addLine(fmt.Sprintf("%s %s", numStr, labelStr))
+		sections = append(sections, fmt.Sprintf("%s %s", numStr, labelStr))
 	} else {
-		addLine(fmt.Sprintf("%s%s%s%s %s%s%s", theme.Bold, theme.Primary, numStr, theme.Reset, theme.Secondary, labelStr, theme.Reset))
+		sections = append(sections, fmt.Sprintf("%s%s%s%s %s%s%s", theme.Bold, theme.Primary, numStr, theme.Reset, theme.Secondary, labelStr, theme.Reset))
 	}
 
 	// 4. Month header + Graph
+	var graphLines []string
 	if monthHeader != "" {
 		if theme.Mode == ColorASCII {
-			addLine(monthHeader)
+			graphLines = append(graphLines, monthHeader)
 		} else {
-			addLine(theme.Secondary + monthHeader + theme.Reset)
+			graphLines = append(graphLines, theme.Secondary+monthHeader+theme.Reset)
 		}
 	}
-	for _, gr := range graphRows {
-		addLine(gr)
-	}
+	graphLines = append(graphLines, graphRows...)
+	sections = append(sections, strings.Join(graphLines, "\n"))
 
 	// 5. Stats
+	var statsLines []string
 	for _, sr := range statsRows {
 		if sr.Content != "" {
-			addLine(sr.Content)
+			statsLines = append(statsLines, sr.Content)
 		}
 	}
+	sections = append(sections, strings.Join(statsLines, "\n"))
 
-	return strings.Join(lines, "\n")
+	joined := lipgloss.JoinVertical(lipgloss.Left, sections...)
+
+	if len(margin) > 0 {
+		lines := strings.Split(joined, "\n")
+		for i := range lines {
+			lines[i] = margin + lines[i]
+		}
+		joined = strings.Join(lines, "\n")
+	}
+
+	return joined
 }

@@ -5,8 +5,8 @@ import (
 	"io"
 	"os"
 	"strings"
-	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/dexisback/gheppo/internal/stats"
 	"golang.org/x/term"
 )
@@ -29,7 +29,7 @@ func ShouldAnimate() bool {
 	return term.IsTerminal(int(os.Stdout.Fd()))
 }
 
-// Animate plays a progressive trace-draw and graph reveal on stdout in interactive terminals.
+// Animate plays a progressive trace-draw and graph reveal on stdout in interactive terminals using Bubble Tea.
 func Animate(w io.Writer, s *stats.Summary) {
 	if s == nil {
 		return
@@ -40,51 +40,12 @@ func Animate(w io.Writer, s *stats.Summary) {
 		return
 	}
 
-	mode := DetectColorMode()
-	themeMode := DetectTheme()
-	theme := GetTheme(mode, themeMode)
-	termWidth := GetTerminalWidth()
-
-	totalWeeks := 0
-	if s.Grid != nil {
-		totalWeeks = len(s.Grid)
-	}
-
-	layout := CalculateLayout(termWidth, totalWeeks)
-
-	// Sweep across 8 progressive steps (~140ms total duration)
-	steps := 8
-	stepDelay := 18 * time.Millisecond
-	prevLineCount := 0
-
-	for step := 1; step <= steps; step++ {
-		progress := float64(step) / float64(steps)
-		revealedWeeks := int(float64(layout.VisibleWeeks) * progress)
-		if revealedWeeks < 1 {
-			revealedWeeks = 1
-		}
-
-		// Progressive cell reveal in graph along with progressive trace-draw in wordmark
-		stepSummary := createStepSummary(s, layout.VisibleWeeks, revealedWeeks)
-		cardOutput := RenderWithThemeAndState(stepSummary, layout, theme, WordmarkState{Progress: progress})
-
-		lines := strings.Split(cardOutput, "\n")
-		currentLineCount := len(lines)
-
-		if step == 1 {
-			// First frame: print normally without trailing newline
-			fmt.Fprint(w, cardOutput)
-		} else {
-			// Subsequent frames: move cursor up exactly (prevLineCount-1) lines, clear screen below, rewrite
-			upCount := prevLineCount - 1
-			if upCount < 1 {
-				upCount = 1
-			}
-			fmt.Fprintf(w, "\033[%dA\r\033[J%s", upCount, cardOutput)
-		}
-
-		prevLineCount = currentLineCount
-		time.Sleep(stepDelay)
+	m := NewModel(s)
+	p := tea.NewProgram(m, tea.WithOutput(w))
+	if _, err := p.Run(); err != nil {
+		// Fallback to static output on error
+		fmt.Fprintln(w, Grid(s))
+		return
 	}
 
 	// Move to next line below the card when animation finishes

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 // ColorMode specifies the terminal color capability level.
@@ -23,6 +25,67 @@ const (
 	ThemeLight
 )
 
+// Styles encapsulates Lip Gloss style definitions for the presentation layer.
+type Styles struct {
+	Primary      lipgloss.Style
+	Secondary    lipgloss.Style
+	Muted        lipgloss.Style
+	ActivityHigh lipgloss.Style
+	Border       lipgloss.Style
+	EmptyCell    lipgloss.Style
+	Level1       lipgloss.Style
+	Level2       lipgloss.Style
+	Level3       lipgloss.Style
+	Level4       lipgloss.Style
+}
+
+// DefaultStyles returns standard Lip Gloss styles for the given theme.
+func DefaultStyles(theme Theme) Styles {
+	if theme.Mode == ColorASCII {
+		return Styles{
+			Primary:      lipgloss.NewStyle(),
+			Secondary:    lipgloss.NewStyle(),
+			Muted:        lipgloss.NewStyle(),
+			ActivityHigh: lipgloss.NewStyle(),
+			Border:       lipgloss.NewStyle(),
+			EmptyCell:    lipgloss.NewStyle(),
+			Level1:       lipgloss.NewStyle(),
+			Level2:       lipgloss.NewStyle(),
+			Level3:       lipgloss.NewStyle(),
+			Level4:       lipgloss.NewStyle(),
+		}
+	}
+
+	if theme.Theme == ThemeLight {
+		return Styles{
+			Primary:      lipgloss.NewStyle().Foreground(lipgloss.Color("#1F2328")).Bold(true),
+			Secondary:    lipgloss.NewStyle().Foreground(lipgloss.Color("#656D76")),
+			Muted:        lipgloss.NewStyle().Foreground(lipgloss.Color("#57606A")),
+			ActivityHigh: lipgloss.NewStyle().Foreground(lipgloss.Color("#30A14E")).Bold(true),
+			Border:       lipgloss.NewStyle().Foreground(lipgloss.Color("#D0D7DE")),
+			EmptyCell:    lipgloss.NewStyle().Foreground(lipgloss.Color("#EBEDF0")),
+			Level1:       lipgloss.NewStyle().Foreground(lipgloss.Color("#9BE9A8")),
+			Level2:       lipgloss.NewStyle().Foreground(lipgloss.Color("#40C463")),
+			Level3:       lipgloss.NewStyle().Foreground(lipgloss.Color("#30A14E")),
+			Level4:       lipgloss.NewStyle().Foreground(lipgloss.Color("#216E39")),
+		}
+	}
+
+	// Dark Theme (default)
+	return Styles{
+		Primary:      lipgloss.NewStyle().Foreground(lipgloss.Color("#F0F6FC")).Bold(true),
+		Secondary:    lipgloss.NewStyle().Foreground(lipgloss.Color("#8B949E")),
+		Muted:        lipgloss.NewStyle().Foreground(lipgloss.Color("#6E7681")),
+		ActivityHigh: lipgloss.NewStyle().Foreground(lipgloss.Color("#35D06F")).Bold(true),
+		Border:       lipgloss.NewStyle().Foreground(lipgloss.Color("#30363D")),
+		EmptyCell:    lipgloss.NewStyle().Foreground(lipgloss.Color("#21262D")),
+		Level1:       lipgloss.NewStyle().Foreground(lipgloss.Color("#0E6B3B")),
+		Level2:       lipgloss.NewStyle().Foreground(lipgloss.Color("#40C463")),
+		Level3:       lipgloss.NewStyle().Foreground(lipgloss.Color("#35D06F")),
+		Level4:       lipgloss.NewStyle().Foreground(lipgloss.Color("#7EE787")),
+	}
+}
+
 // Theme encapsulates all UI color tokens and contribution cell styles.
 type Theme struct {
 	Mode         ColorMode
@@ -41,6 +104,11 @@ type Theme struct {
 	ContributionLevel2 string
 	ContributionLevel3 string
 	ContributionLevel4 string
+}
+
+// Styles returns Lip Gloss style definitions for this theme.
+func (t Theme) Styles() Styles {
+	return DefaultStyles(t)
 }
 
 // PaletteTokens is an alias for Theme to maintain backwards compatibility.

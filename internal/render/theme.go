@@ -76,13 +76,13 @@ func DefaultStyles(theme Theme) Styles {
 		Primary:      lipgloss.NewStyle().Foreground(lipgloss.Color("#F0F6FC")).Bold(true),
 		Secondary:    lipgloss.NewStyle().Foreground(lipgloss.Color("#8B949E")),
 		Muted:        lipgloss.NewStyle().Foreground(lipgloss.Color("#6E7681")),
-		ActivityHigh: lipgloss.NewStyle().Foreground(lipgloss.Color("#35D06F")).Bold(true),
+		ActivityHigh: lipgloss.NewStyle().Foreground(lipgloss.Color("#56EA8E")).Bold(true),
 		Border:       lipgloss.NewStyle().Foreground(lipgloss.Color("#30363D")),
-		EmptyCell:    lipgloss.NewStyle().Foreground(lipgloss.Color("#262C36")),
-		Level1:       lipgloss.NewStyle().Foreground(lipgloss.Color("#0E4C2D")),
-		Level2:       lipgloss.NewStyle().Foreground(lipgloss.Color("#26A641")),
-		Level3:       lipgloss.NewStyle().Foreground(lipgloss.Color("#39D353")),
-		Level4:       lipgloss.NewStyle().Foreground(lipgloss.Color("#7EE787")),
+		EmptyCell:    lipgloss.NewStyle().Foreground(lipgloss.Color("#1B2330")),
+		Level1:       lipgloss.NewStyle().Foreground(lipgloss.Color("#124E34")),
+		Level2:       lipgloss.NewStyle().Foreground(lipgloss.Color("#24824C")),
+		Level3:       lipgloss.NewStyle().Foreground(lipgloss.Color("#34C759")),
+		Level4:       lipgloss.NewStyle().Foreground(lipgloss.Color("#56EA8E")),
 	}
 }
 
@@ -174,11 +174,11 @@ var (
 	darkSecondaryText = "\033[38;2;139;148;158m" // #8B949E
 	darkMutedText     = "\033[38;2;110;118;129m" // #6E7681
 
-	darkEmptyCell      = "\033[38;2;38;44;54m"    // #262C36 (clearly visible inactive slate tile)
-	darkActivityLevel1 = "\033[38;2;14;76;45m"    // #0E4C2D (Level 1: deep forest green)
-	darkActivityLevel2 = "\033[38;2;38;166;65m"   // #26A641 (Level 2: rich emerald green)
-	darkActivityLevel3 = "\033[38;2;57;211;83m"   // #39D353 (Level 3: bright vibrant green)
-	darkActivityLevel4 = "\033[38;2;126;231;135m" // #7EE787 (Level 4: electric mint green)
+	darkEmptyCell      = "\033[38;2;27;35;48m"    // #1B2330 (deep subtle blue-slate track tile)
+	darkActivityLevel1 = "\033[38;2;18;78;52m"    // #124E34 (Level 1: deep rich forest green)
+	darkActivityLevel2 = "\033[38;2;36;130;76m"   // #24824C (Level 2: rich emerald green)
+	darkActivityLevel3 = "\033[38;2;52;199;89m"   // #34C759 (Level 3: vibrant green)
+	darkActivityLevel4 = "\033[38;2;86;234;142m"  // #56EA8E (Level 4: electric luminous mint green)
 
 	// Light Theme - TrueColor
 	lightBorder        = "\033[38;2;208;215;222m" // #D0D7DE
@@ -282,7 +282,7 @@ func GetTheme(mode ColorMode, theme ThemeMode) Theme {
 			Primary:            darkPrimaryText,
 			Secondary:          darkSecondaryText,
 			Muted:              darkMutedText,
-			ActivityHigh:       darkActivityLevel3,
+			ActivityHigh:       darkActivityLevel4,
 			Reset:              reset,
 			Bold:               bold,
 			EmptyCell:          darkEmptyCell,

@@ -7,6 +7,8 @@ import (
 // Theme defines the visual design tokens for Gheppo presentation.
 type Theme struct {
 	Name        string    `json:"name"`
+	DisplayName string    `json:"displayName,omitempty"`
+	Description string    `json:"description,omitempty"`
 	Background  string    `json:"background"`
 	Foreground  string    `json:"foreground"`
 	Muted       string    `json:"muted"`
@@ -16,10 +18,23 @@ type Theme struct {
 	Accent      string    `json:"accent"`
 }
 
+// Title returns DisplayName if set, otherwise the capitalized Name.
+func (t Theme) Title() string {
+	if t.DisplayName != "" {
+		return t.DisplayName
+	}
+	if len(t.Name) > 0 {
+		return strings.ToUpper(t.Name[:1]) + t.Name[1:]
+	}
+	return t.Name
+}
+
 // Built-in theme registry containing the 5 initial themes.
 var registry = map[string]Theme{
 	"github": {
 		Name:        "github",
+		DisplayName: "GitHub",
+		Description: "The classic GitHub contribution graph palette.",
 		Background:  "#0D1117",
 		Foreground:  "#F0F6FC",
 		Muted:       "#8B949E",
@@ -30,6 +45,8 @@ var registry = map[string]Theme{
 	},
 	"mono": {
 		Name:        "mono",
+		DisplayName: "Mono",
+		Description: "High-contrast monochrome grayscale palette.",
 		Background:  "#121212",
 		Foreground:  "#F2F2F2",
 		Muted:       "#969696",
@@ -40,6 +57,8 @@ var registry = map[string]Theme{
 	},
 	"catppuccin": {
 		Name:        "catppuccin",
+		DisplayName: "Catppuccin",
+		Description: "Soothing pastel palette for the terminal.",
 		Background:  "#1E1E2E",
 		Foreground:  "#CDD6F4",
 		Muted:       "#A6ADC8",
@@ -50,6 +69,8 @@ var registry = map[string]Theme{
 	},
 	"nord": {
 		Name:        "nord",
+		DisplayName: "Nord",
+		Description: "A clean and arctic-inspired palette for the terminal.",
 		Background:  "#2E3440",
 		Foreground:  "#D8DEE9",
 		Muted:       "#AAB4C3",
@@ -60,6 +81,8 @@ var registry = map[string]Theme{
 	},
 	"gruvbox": {
 		Name:        "gruvbox",
+		DisplayName: "Gruvbox",
+		Description: "Retro groove warm autumn palette with rich contrast.",
 		Background:  "#282828",
 		Foreground:  "#EBDBB2",
 		Muted:       "#A89984",

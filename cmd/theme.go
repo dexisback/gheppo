@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/dexisback/gheppo/internal/cache"
 	"github.com/dexisback/gheppo/internal/config"
 	"github.com/dexisback/gheppo/internal/render"
 	"github.com/spf13/cobra"
@@ -51,7 +52,11 @@ func runTheme(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		fmt.Fprintf(out, "Theme set to '%s'.\n", chosen.Name)
+		if summary, ok := cache.Load(); ok {
+			render.Animate(out, summary)
+		} else {
+			fmt.Fprintf(out, "Theme set to '%s'.\n", chosen.Name)
+		}
 		return nil
 	}
 

@@ -14,7 +14,9 @@ import (
 // Returns the chosen theme, whether the user canceled, and any error encountered.
 func RunThemeSelector(in io.Reader, out io.Writer) (config.Theme, bool, error) {
 	model := NewThemeSelectorModel()
-	var opts []tea.ProgramOption
+	opts := []tea.ProgramOption{
+		tea.WithAltScreen(),
+	}
 	if in != nil {
 		opts = append(opts, tea.WithInput(in))
 	}

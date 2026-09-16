@@ -152,12 +152,12 @@ func TestWordmarkResponsiveWidth(t *testing.T) {
 
 func TestGetWordmarkCompatibility(t *testing.T) {
 	asciiWM := GetWordmark(ColorASCII)
-	if !strings.Contains(asciiWM, "####") && !strings.Contains(asciiWM, "=====") {
+	if !strings.Contains(asciiWM, "#") && !strings.Contains(asciiWM, "-") {
 		t.Errorf("unexpected ASCII wordmark format: %q", asciiWM)
 	}
 
 	tcWM := GetWordmark(ColorTrueColor)
-	if !strings.Contains(tcWM, "█") {
+	if !strings.Contains(tcWM, "█") && !strings.Contains(tcWM, "▀") {
 		t.Errorf("unexpected TrueColor wordmark format: %q", tcWM)
 	}
 }

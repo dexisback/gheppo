@@ -7,12 +7,13 @@ import (
 
 // WordmarkPoint represents a single geometric point or block in the wordmark canvas.
 type WordmarkPoint struct {
-	Row       int     // 0, 1, 2
-	Col       int     // 0-indexed column
-	Glyph     string  // UTF-8 display glyph
-	AsciiAlt  string  // ASCII fallback glyph
-	Intensity int     // 0..4 (palette level: 0=dimmest/empty, 1..4=activity levels)
-	Threshold float64 // Progress threshold [0.0, 1.0] when this point activates
+	Row        int     // 0, 1, 2
+	Col        int     // 0-indexed column
+	Glyph      string  // UTF-8 display glyph
+	AsciiAlt   string  // ASCII fallback glyph
+	Intensity  int     // 0..4 (palette level: 0=dimmest/empty, 1..4=activity levels)
+	Threshold  float64 // Progress threshold [0.0, 1.0] when this point activates
+	WithShadow bool    // Render with 3D bottom shadow in TrueColor/256 color modes
 }
 
 // WordmarkCanvas holds the geometric model of the custom GHEPPO wordmark.
@@ -33,7 +34,7 @@ const (
 )
 
 // BuildWordmarkCanvas constructs the default full-width (46 cols) geometric representation of the
-// procedural trace and the custom block-letter GHEPPO wordmark matching Image 3.
+// procedural trace and the custom block-letter GHEPPO wordmark matching the design target.
 func BuildWordmarkCanvas() WordmarkCanvas {
 	return BuildWordmarkCanvasWithWidth(defaultWordmarkWidth)
 }
@@ -53,53 +54,60 @@ func BuildWordmarkCanvasWithWidth(maxWidth int) WordmarkCanvas {
 	}
 
 	var rawPts []WordmarkPoint
-	add := func(row, col int, glyph, ascii string, intensity int, threshold float64) {
+	add := func(row, col int, glyph, ascii string, intensity int, threshold float64, withShadow ...bool) {
+		sh := false
+		if len(withShadow) > 0 {
+			sh = withShadow[0]
+		}
 		rawPts = append(rawPts, WordmarkPoint{
-			Row:       row,
-			Col:       col,
-			Glyph:     glyph,
-			AsciiAlt:  ascii,
-			Intensity: intensity,
-			Threshold: threshold,
+			Row:        row,
+			Col:        col,
+			Glyph:      glyph,
+			AsciiAlt:   ascii,
+			Intensity:  intensity,
+			Threshold:  threshold,
+			WithShadow: sh,
 		})
 	}
 
 	// =========================================================================
 	// 1. TRACE PATH & CONNECTOR (Cols 0..13) — Progress: [0.00, 0.35]
+	// Single horizontal beam with subtle satellite brackets converging into G
 	// =========================================================================
-	// Row 0 satellite dots & top bracket
-	add(0, 4, "▪", "-", 1, 0.08)
-	add(0, 8, "▪", "-", 2, 0.18)
-	add(0, 13, "▄", "-", 3, 0.32)
+	// Row 0 satellite & top connector
+	add(0, 10, "▪", "-", 2, 0.22)
+	add(0, 12, "▄", "-", 3, 0.29)
 
 	// Row 1 main horizontal data path leading directly into G
-	add(1, 0, "▪", ".", 1, 0.00)
-	add(1, 2, "·", ".", 1, 0.05)
-	add(1, 4, "▪", "-", 2, 0.10)
-	add(1, 6, "▪", "-", 2, 0.15)
-	add(1, 8, "▪", "-", 2, 0.20)
-	add(1, 10, "█", "=", 3, 0.25)
-	add(1, 12, "█", "=", 3, 0.30)
+	add(1, 0, "·", ".", 1, 0.00)
+	add(1, 2, "·", ".", 1, 0.04)
+	add(1, 4, "▪", "-", 1, 0.08)
+	add(1, 6, "▪", "-", 2, 0.12)
+	add(1, 8, "■", "=", 2, 0.16)
+	add(1, 10, "■", "=", 3, 0.20)
+	add(1, 12, "█", "#", 4, 0.25)
 
-	// Row 2 satellite dots & bottom bracket
-	add(2, 2, "▪", "-", 1, 0.06)
-	add(2, 6, "▪", "-", 2, 0.16)
-	add(2, 13, "▀", "-", 3, 0.32)
+	// Row 2 satellite & bottom connector
+	add(2, 10, "▪", "-", 2, 0.22)
+	add(2, 12, "▀", "-", 3, 0.29)
 
 	// =========================================================================
 	// 2. LETTER G (Cols 14..18, Width 5) — Progress: [0.35, 0.48]
-	// Row 0: █████
-	// Row 1: █  ██
-	// Row 2: █████
+	// Row 0: ▄▀▀▀▀
+	// Row 1: █ ▀▀█
+	// Row 2:  ▀▀▀▀ (with shadow)
 	// =========================================================================
 	gOffset := 14
-	for c := 0; c < 5; c++ {
-		t := 0.35 + float64(c)*0.026
-		add(0, gOffset+c, "█", "#", 3, t)
-		if c == 0 || c >= 3 {
-			add(1, gOffset+c, "█", "#", 3, t)
-		}
-		add(2, gOffset+c, "█", "#", 3, t)
+	add(0, gOffset, "▄", ".", 3, 0.35)
+	for c := 1; c < 5; c++ {
+		add(0, gOffset+c, "▀", "-", 3, 0.37+float64(c-1)*0.02)
+	}
+	add(1, gOffset, "█", "#", 3, 0.35)
+	add(1, gOffset+2, "▀", "-", 3, 0.39)
+	add(1, gOffset+3, "▀", "-", 3, 0.41)
+	add(1, gOffset+4, "█", "#", 3, 0.43)
+	for c := 1; c < 5; c++ {
+		add(2, gOffset+c, "▀", "-", 3, 0.37+float64(c-1)*0.02, true)
 	}
 
 	// Space at 19
@@ -107,93 +115,99 @@ func BuildWordmarkCanvasWithWidth(maxWidth int) WordmarkCanvas {
 	// =========================================================================
 	// 3. LETTER H (Cols 20..24, Width 5) — Progress: [0.48, 0.58]
 	// Row 0: █   █
-	// Row 1: █████
-	// Row 2: █   █
+	// Row 1: █▀▀▀█
+	// Row 2: ▀   ▀ (with shadow)
 	// =========================================================================
 	hOffset := 20
-	for c := 0; c < 5; c++ {
-		t := 0.48 + float64(c)*0.02
-		if c == 0 || c == 4 {
-			add(0, hOffset+c, "█", "#", 3, t)
-			add(2, hOffset+c, "█", "#", 3, t)
-		}
-		add(1, hOffset+c, "█", "#", 3, t)
+	add(0, hOffset, "█", "#", 3, 0.48)
+	add(0, hOffset+4, "█", "#", 3, 0.56)
+	add(1, hOffset, "█", "#", 3, 0.48)
+	for c := 1; c < 4; c++ {
+		add(1, hOffset+c, "▀", "-", 3, 0.50+float64(c-1)*0.02)
 	}
+	add(1, hOffset+4, "█", "#", 3, 0.56)
+	add(2, hOffset, "▀", "-", 3, 0.48, true)
+	add(2, hOffset+4, "▀", "-", 3, 0.56, true)
 
 	// Space at 25
 
 	// =========================================================================
 	// 4. LETTER E (Cols 26..29, Width 4) — Progress: [0.58, 0.68]
-	// Row 0: ████
-	// Row 1: ███ 
-	// Row 2: ████
+	// Row 0: █▀▀▀
+	// Row 1: █▀▀▀ 
+	// Row 2: ▀▀▀▀ (with shadow)
 	// =========================================================================
 	eOffset := 26
+	add(0, eOffset, "█", "#", 3, 0.58)
+	for c := 1; c < 4; c++ {
+		add(0, eOffset+c, "▀", "-", 3, 0.60+float64(c-1)*0.02)
+	}
+	add(1, eOffset, "█", "#", 3, 0.58)
+	for c := 1; c < 4; c++ {
+		add(1, eOffset+c, "▀", "-", 3, 0.60+float64(c-1)*0.02)
+	}
 	for c := 0; c < 4; c++ {
-		t := 0.58 + float64(c)*0.025
-		add(0, eOffset+c, "█", "#", 3, t)
-		if c < 3 {
-			add(1, eOffset+c, "█", "#", 3, t)
-		}
-		add(2, eOffset+c, "█", "#", 3, t)
+		add(2, eOffset+c, "▀", "-", 3, 0.58+float64(c)*0.02, true)
 	}
 
 	// Space at 30
 
 	// =========================================================================
 	// 5. LETTER P1 (Cols 31..34, Width 4) — Progress: [0.68, 0.78]
-	// Row 0: ████
-	// Row 1: █  █
-	// Row 2: █   
+	// Row 0: █▀▀█
+	// Row 1: █▀▀▀
+	// Row 2: ▀    (with shadow)
 	// =========================================================================
 	p1Offset := 31
-	for c := 0; c < 4; c++ {
-		t := 0.68 + float64(c)*0.025
-		add(0, p1Offset+c, "█", "#", 3, t)
-		if c == 0 || c == 3 {
-			add(1, p1Offset+c, "█", "#", 3, t)
-		}
-		if c == 0 {
-			add(2, p1Offset+c, "█", "#", 3, t)
-		}
+	add(0, p1Offset, "█", "#", 3, 0.68)
+	add(0, p1Offset+1, "▀", "-", 3, 0.70)
+	add(0, p1Offset+2, "▀", "-", 3, 0.72)
+	add(0, p1Offset+3, "█", "#", 3, 0.74)
+	add(1, p1Offset, "█", "#", 3, 0.68)
+	for c := 1; c < 4; c++ {
+		add(1, p1Offset+c, "▀", "-", 3, 0.70+float64(c-1)*0.02)
 	}
+	add(2, p1Offset, "▀", "-", 3, 0.68, true)
 
 	// Space at 35
 
 	// =========================================================================
 	// 6. LETTER P2 (Cols 36..39, Width 4) — Progress: [0.78, 0.88]
-	// Row 0: ████
-	// Row 1: █  █
-	// Row 2: █   
+	// Row 0: █▀▀█
+	// Row 1: █▀▀▀
+	// Row 2: ▀    (with shadow)
 	// =========================================================================
 	p2Offset := 36
-	for c := 0; c < 4; c++ {
-		t := 0.78 + float64(c)*0.025
-		add(0, p2Offset+c, "█", "#", 3, t)
-		if c == 0 || c == 3 {
-			add(1, p2Offset+c, "█", "#", 3, t)
-		}
-		if c == 0 {
-			add(2, p2Offset+c, "█", "#", 3, t)
-		}
+	add(0, p2Offset, "█", "#", 3, 0.78)
+	add(0, p2Offset+1, "▀", "-", 3, 0.80)
+	add(0, p2Offset+2, "▀", "-", 3, 0.82)
+	add(0, p2Offset+3, "█", "#", 3, 0.84)
+	add(1, p2Offset, "█", "#", 3, 0.78)
+	for c := 1; c < 4; c++ {
+		add(1, p2Offset+c, "▀", "-", 3, 0.80+float64(c-1)*0.02)
 	}
+	add(2, p2Offset, "▀", "-", 3, 0.78, true)
 
 	// Space at 40
 
 	// =========================================================================
 	// 7. LETTER O (Cols 41..45, Width 5) — Progress: [0.88, 1.00]
-	// Row 0: █████
+	// Row 0: ▄▀▀▀▄
 	// Row 1: █   █
-	// Row 2: █████
+	// Row 2:  ▀▀▀  (with shadow)
 	// =========================================================================
 	oOffset := 41
-	for c := 0; c < 5; c++ {
-		t := 0.88 + float64(c)*0.024
-		add(0, oOffset+c, "█", "#", 3, t)
-		if c == 0 || c == 4 {
-			add(1, oOffset+c, "█", "#", 3, t)
-		}
-		add(2, oOffset+c, "█", "#", 3, t)
+	add(0, oOffset, "▄", ".", 3, 0.88)
+	for c := 1; c < 4; c++ {
+		add(0, oOffset+c, "▀", "-", 3, 0.90+float64(c-1)*0.03)
+	}
+	add(0, oOffset+4, "▄", ".", 3, 1.00)
+
+	add(1, oOffset, "█", "#", 3, 0.88)
+	add(1, oOffset+4, "█", "#", 3, 1.00)
+
+	for c := 1; c < 4; c++ {
+		add(2, oOffset+c, "▀", "-", 3, 0.90+float64(c-1)*0.03, true)
 	}
 
 	finalWidth := defaultWordmarkWidth - shift
@@ -270,7 +284,11 @@ func RenderWordmarkWithStateAndWidth(theme Theme, state WordmarkState, maxWidth 
 					intensity = 4
 				}
 				color := colors[intensity]
-				grid[pt.Row][pt.Col] = color + pt.Glyph + theme.Reset
+				if pt.WithShadow && theme.ShadowBg != "" {
+					grid[pt.Row][pt.Col] = color + theme.ShadowBg + pt.Glyph + theme.Reset
+				} else {
+					grid[pt.Row][pt.Col] = color + pt.Glyph + theme.Reset
+				}
 			}
 		}
 	}

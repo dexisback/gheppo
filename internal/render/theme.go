@@ -104,6 +104,9 @@ type Theme struct {
 	ContributionLevel2 string
 	ContributionLevel3 string
 	ContributionLevel4 string
+
+	// 3D Shadow styling
+	ShadowBg string
 }
 
 // Styles returns Lip Gloss style definitions for this theme.
@@ -189,6 +192,9 @@ var (
 	lightActivityLevel3 = "\033[38;2;48;161;78m"   // #30A14E
 	lightActivityLevel4 = "\033[38;2;33;110;57m"   // #216E39
 
+	darkShadowBg   = "\033[48;2;14;65;35m"    // #0E4123
+	lightShadowBg  = "\033[48;2;208;215;222m" // #D0D7DE
+
 	// 256-color approximations
 	// Dark Theme
 	dark256Border         = "\033[38;5;237m"
@@ -200,6 +206,7 @@ var (
 	dark256ActivityLevel2 = "\033[38;5;35m"
 	dark256ActivityLevel3 = "\033[38;5;48m"
 	dark256ActivityLevel4 = "\033[38;5;120m"
+	dark256ShadowBg       = "\033[48;5;22m"
 
 	// Light Theme
 	light256Border         = "\033[38;5;252m"
@@ -211,6 +218,7 @@ var (
 	light256ActivityLevel2 = "\033[38;5;77m"
 	light256ActivityLevel3 = "\033[38;5;71m"
 	light256ActivityLevel4 = "\033[38;5;29m"
+	light256ShadowBg       = "\033[48;5;252m"
 
 	reset = "\033[0m"
 	bold  = "\033[1m"
@@ -238,10 +246,11 @@ var pureAsciiGlyphs = map[int]string{
 func GetTheme(mode ColorMode, theme ThemeMode) Theme {
 	if mode == ColorASCII {
 		return Theme{
-			Mode:  ColorASCII,
-			Theme: theme,
-			Reset: "",
-			Bold:  "",
+			Mode:     ColorASCII,
+			Theme:    theme,
+			Reset:    "",
+			Bold:     "",
+			ShadowBg: "",
 		}
 	}
 
@@ -262,6 +271,7 @@ func GetTheme(mode ColorMode, theme ThemeMode) Theme {
 				ContributionLevel2: dark256ActivityLevel2,
 				ContributionLevel3: dark256ActivityLevel3,
 				ContributionLevel4: dark256ActivityLevel4,
+				ShadowBg:           dark256ShadowBg,
 			}
 		}
 		// TrueColor Dark
@@ -280,6 +290,7 @@ func GetTheme(mode ColorMode, theme ThemeMode) Theme {
 			ContributionLevel2: darkActivityLevel2,
 			ContributionLevel3: darkActivityLevel3,
 			ContributionLevel4: darkActivityLevel4,
+			ShadowBg:           darkShadowBg,
 		}
 	}
 
@@ -300,6 +311,7 @@ func GetTheme(mode ColorMode, theme ThemeMode) Theme {
 			ContributionLevel2: light256ActivityLevel2,
 			ContributionLevel3: light256ActivityLevel3,
 			ContributionLevel4: light256ActivityLevel4,
+			ShadowBg:           light256ShadowBg,
 		}
 	}
 
@@ -319,6 +331,7 @@ func GetTheme(mode ColorMode, theme ThemeMode) Theme {
 		ContributionLevel2: lightActivityLevel2,
 		ContributionLevel3: lightActivityLevel3,
 		ContributionLevel4: lightActivityLevel4,
+		ShadowBg:           lightShadowBg,
 	}
 }
 

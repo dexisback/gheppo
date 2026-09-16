@@ -1,45 +1,48 @@
 # Gheppo
 
-> Ambient GitHub contribution heatmap for every terminal session.
+> Your GitHub contribution graph, every time you open a terminal.
 
-[![Go Version](https://img.shields.io/badge/go-1.22%2B-blue.svg)](https://golang.org)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows-lightgrey.svg)]()
+**Go 1.26.5+** · **[MIT License](LICENSE)**
 
-Gheppo brings your GitHub contribution graph directly into your terminal startup. Designed with a strict **performance-first invariant**, it displays your activity graph in under 5 milliseconds from a local cache without blocking shell startup or waiting on network roundtrips.
+Gheppo brings your GitHub contribution graph and activity statistics into your terminal. It renders cached data locally, then refreshes stale data in a detached process for a later invocation. Normal cached rendering does not wait for GitHub API requests.
 
 ---
 
 ## Highlights
 
-- **Sub-Millisecond Startup Path**: Zero network I/O on terminal launch. Cache-first rendering guarantees instant output (<5ms).
-- **Non-Blocking Background Refresh**: Asynchronous cache updates via detached background processes protected by cross-process locks.
-- **Secure Credential Management**: Tokens are stored exclusively in native OS keychains (macOS Keychain, Linux Secret Service, Windows Credential Manager) via `go-keyring`.
-- **Zero Shell Hiccups**: Fully compatible with Zsh (including Powerlevel10k instant prompt) and Bash (`PROMPT_COMMAND` preservation).
-- **Adaptive Terminal Rendering**: Automatic capability detection across TrueColor (24-bit), 256-color ANSI, and `NO_COLOR`-compliant ASCII.
+- **Cache-first startup**: normal renders read only a local cache — no network wait at startup.
+- **Background refresh**: a cross-process file lock gates detached refreshes when the cache is older than six hours. Cache updates use a temporary file and rename.
+- **Keychain authentication**: `gheppo auth login` saves credentials in macOS Keychain, Linux Secret Service, or Windows Credential Manager via `go-keyring`.
+- **Themes**: built-in `github` (default), `mono`, `catppuccin`, `nord`, `gruvbox`; switch with `gheppo theme`. Persisted to `config.json`, overridable via `GHEPPO_THEME`.
+- **Responsive, animated rendering**: Bubble Tea + Lip Gloss TUI with progressive reveal; graceful degradation from 140+ columns down to 46, with a static fallback for non-TTY, `NO_COLOR`, `CI`, and dumb terminals.
+- **Adaptive color modes**: automatic negotiation across TrueColor (24-bit), 256-color ANSI, and `NO_COLOR`-compliant ASCII.
+- **Shell-safe integration**: Zsh (Powerlevel10k instant-prompt safe via a self-unregistering `line-init` widget) and Bash (`PROMPT_COMMAND` preservation).
 
 ---
 
 ## Architecture at a Glance
 
+The GitHub path separates local rendering from network refresh:
+
 ```mermaid
 flowchart TD
-    A["Terminal Session Start"] --> B["Shell Integration Hook"]
-    B --> C["gheppo CLI"]
-    C --> D{"Local Cache Exists?"}
-    D -- "Yes" --> E["Render Heatmap to stdout (<5ms)"]
-    E --> F{"Cache Stale? (>6h)"}
-    F -- "No" --> G["Shell Prompt Ready"]
-    F -- "Yes" --> H{"Try Acquire File Lock"}
-    H -- "Acquired" --> I["Spawn Detached 'gheppo sync'"]
-    H -- "Locked" --> G
-    I --> J["Fetch GitHub GraphQL API"]
-    J --> K["Atomic Cache Write (.tmp -> data.json)"]
-    K --> L["Release Token Lock"]
-    D -- "No" --> M["Print Setup & Auth Prompt"]
+    CLI["Shell hook or gheppo"] --> Cache{"Usable cache?"}
+    Cache -- No --> Setup["Show authentication or sync instructions"]
+    Cache -- Yes --> Render["Render cached card"]
+    Render --> Gate{"Older than 6h and lock acquired?"}
+    Gate -- No --> Exit["Return to shell"]
+    Gate -- Yes --> Spawn["Spawn detached gheppo sync"]
+    Spawn --> Exit
+    Spawn -. Background .-> Fetch["Load credentials → GitHub GraphQL"]
+    Fetch --> Save["Summarize → atomic cache replacement"]
+    Save -. "Next invocation" .-> Cache
 ```
 
-For comprehensive engineering specifications, lock safety, and streak calculation internals, see [ARCHITECTURE.md](ARCHITECTURE.md).
+The refresh lock is passed to the child process, which releases it on success or failure. If spawning fails, the parent releases it. Failed refreshes leave the previous cache available and do not fail the normal render command. Manual `gheppo sync` runs in the foreground.
+
+Interactive rendering includes a reveal animation before the refresh check; cache-first does not imply a guaranteed sub-5 ms invocation. Set `GHEPPO_NO_ANIMATION=1` for static output.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for engineering background. [PROJECT.md](PROJECT.md) records the original project goals and handover; some implementation notes predate the current CLI and theme support.
 
 ---
 
@@ -55,29 +58,27 @@ cd gheppo
 ./scripts/install.sh
 ```
 
-The installer builds the binary to `~/.local/bin/gheppo` and adds an idempotent shell integration block to your `.zshrc` or `.bashrc`.
-
-> Ensure `~/.local/bin` is in your `$PATH`.
+The installer builds the binary to `~/.local/bin/gheppo` and appends an idempotent, delimiter-marked shell integration block to your `.zshrc` or `.bashrc`. Ensure `~/.local/bin` is on your `$PATH`.
 
 ### 2. Authentication
 
-Authenticate using a GitHub Personal Access Token (classic or fine-grained) with `read:user` permission:
+Authenticate with a GitHub Personal Access Token that can read your profile and contribution data. For a classic token, use the `read:user` scope; fine-grained tokens use a different permission model.
 
 ```bash
 gheppo auth login
 ```
 
-The token is verified against the GitHub API and stored in your operating system keychain.
+The token is entered with terminal echo disabled, verified against the GitHub API, and stored in your OS keychain. When no keychain entry exists, the client also checks `GITHUB_TOKEN`, `GH_TOKEN`, and `GITHUB_MCP_TOKEN`; resolving an account from these variables requires a network request.
 
 ### 3. Initial Sync
 
-Bootstrap your local contribution cache:
+Bootstrap the local contribution cache:
 
 ```bash
 gheppo sync
 ```
 
-Open a new terminal tab or window to view your ambient heatmap.
+Open a new terminal tab or window to see your card.
 
 ---
 
@@ -85,24 +86,38 @@ Open a new terminal tab or window to view your ambient heatmap.
 
 | Command | Description |
 | :--- | :--- |
-| `gheppo` | Renders cached heatmap and triggers detached refresh if cache is older than 6h. |
-| `gheppo sync` | Fetches fresh calendar from GitHub GraphQL API and atomically updates local cache. |
-| `gheppo auth login` | Interactively prompts for a GitHub PAT, verifies credentials, and saves to keychain. |
-| `gheppo auth status` | Displays the currently authenticated GitHub account. |
-| `gheppo auth logout` | Removes credentials from the OS keychain. |
-| `gheppo uninstall` | Removes the binary, shell configuration blocks, and stored keychain secrets. |
-| `gheppo --version` | Prints current version. |
+| `gheppo` | Renders the cached card; spawns a detached refresh if the cache is >6h old. |
+| `gheppo sync` | Fetches the calendar and profile stats from GitHub GraphQL and atomically updates the cache. |
+| `gheppo theme` | Opens an interactive theme selector (arrow keys / enter / q). |
+| `gheppo theme <name>` | Switches directly to a named theme. |
+| `gheppo auth login` | Prompts for a GitHub PAT, verifies it, and stores it in the OS keychain. |
+| `gheppo auth status` | Shows the authenticated account. |
+| `gheppo auth logout` | Removes credentials from the keychain. |
+| `gheppo uninstall` | Removes the binary, shell integration block, and stored credentials. |
+| `gheppo --version` | Prints the current version. |
+
+---
+
+## Themes
+
+Five built-in themes: `github` (default), `mono`, `catppuccin`, `nord`, `gruvbox`.
+
+```bash
+gheppo theme
+gheppo theme catppuccin
+```
+
+The choice persists to `<user config dir>/gheppo/config.json` and takes effect on the next render. `GHEPPO_THEME` overrides it per-session; a missing or corrupt config falls back to `github`.
 
 ---
 
 ## Shell Integration
 
-Gheppo hooks into shell startup without introducing prompt latency or display glitches.
+- **Zsh**: a self-deregistering `zle-line-init` widget runs Gheppo after the prompt is ready, avoiding Powerlevel10k instant-prompt warnings and redrawing cleanly with `zle -I`.
+- **Bash**: wraps `PROMPT_COMMAND` (string and array forms) and restores the user's original commands after the first run.
 
-- **Zsh**: Uses a self-unregistering line-init widget hook (`add-zle-hook-widget line-init _gheppo_once`) so execution occurs after the prompt is ready, preventing Powerlevel10k instant prompt warnings.
-- **Bash**: Safely wraps `PROMPT_COMMAND` (supporting both string and array formats) and restores original user commands after initial execution.
+Managed blocks are delimited by:
 
-Shell hooks are demarcated by managed comment delimiters:
 ```bash
 # >>> gheppo >>>
 ...
@@ -113,15 +128,7 @@ Shell hooks are demarcated by managed comment delimiters:
 
 ## Terminal Font
 
-For optimal visual quality, Gheppo is designed around **Iosevka Term**.
-
-Iosevka Term provides:
-- Compact terminal-oriented proportions
-- High information density
-- Distinctive glyphs with strong alignment
-- Excellent rendering of contribution cells and statistics
-
-While Gheppo works with any monospace font, the UI is optimized for Iosevka Term's metrics.
+Gheppo is designed around **Iosevka Term**: compact terminal proportions, high density, and strong glyph alignment for contribution cells and statistics. It works with any monospace font, but the layout is tuned to Iosevka Term's metrics.
 
 Download: [Iosevka](https://github.com/be5invis/Iosevka)
 
@@ -129,12 +136,12 @@ Download: [Iosevka](https://github.com/be5invis/Iosevka)
 
 ## Terminal Color Modes
 
-Gheppo automatically negotiates terminal color support:
+1. **`NO_COLOR` set**: ASCII output with no escape codes.
+2. **`COLORTERM=truecolor|24bit`**: full 24-bit rendering with the theme's palette.
+3. **`TERM=*256color*`**: 256-color approximation.
+4. **Otherwise**: ASCII fallback.
 
-1. **`NO_COLOR` set**: Standard ASCII output (`.` `-` `=` `+` `#` intensity glyphs, zero color codes).
-2. **`COLORTERM=truecolor` / `24bit`**: Full 24-bit TrueColor rendering with design-specified GitHub green palette.
-3. **`TERM=*256color*`**: 256-color ANSI palette approximation.
-4. **Basic terminal**: ASCII fallback with intensity-based glyphs.
+Reveal animation is skipped automatically on non-TTY, `CI`, dumb terminals, or when `GHEPPO_NO_ANIMATION` is set.
 
 ---
 
@@ -142,16 +149,17 @@ Gheppo automatically negotiates terminal color support:
 
 ### Prerequisites
 
-- Go 1.22+
-- Cgo-free build pipeline (native system keychain bindings)
+- Go 1.26.5 or newer, as required by `go.mod`.
+- The installer configures Bash or Zsh on Linux/macOS; it does not configure PowerShell or Fish.
+- An accessible OS keychain. Linux requires a running Secret Service provider, such as GNOME Keyring.
 
-### Test Suite & Concurrency Verification
+### Test Suite
 
 ```bash
-# Run all unit and integration tests
-go test -v ./...
+# Unit and integration tests
+go test ./...
 
-# Validate cross-process concurrency and race safety
+# Concurrency and race safety
 go test -race ./...
 
 # Cross-compilation checks

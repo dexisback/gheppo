@@ -152,6 +152,57 @@ func TestGetSelectedThemeWithEnvOverride(t *testing.T) {
 	}
 }
 
+func TestSourceConfig(t *testing.T) {
+	tempDir := t.TempDir()
+	restore := SetConfigDirForTesting(func() (string, error) {
+		return tempDir, nil
+	})
+	defer restore()
+
+	// Default source without config
+	if src := GetSource(); src != SourceGitHub {
+		t.Errorf("GetSource() default = %q, want %q", src, SourceGitHub)
+	}
+	if IsSourceConfigured() {
+		t.Error("IsSourceConfigured() should be false initially")
+	}
+
+	// Persist source = leetcode
+	if err := SetSource(SourceLeetCode); err != nil {
+		t.Fatalf("SetSource(leetcode) failed: %v", err)
+	}
+	if !IsSourceConfigured() {
+		t.Error("IsSourceConfigured() should be true after SetSource")
+	}
+	if src := GetSource(); src != SourceLeetCode {
+		t.Errorf("GetSource() = %q, want %q", src, SourceLeetCode)
+	}
+
+	// LeetCode username persistence
+	if err := SetLeetCodeUsername("test_user"); err != nil {
+		t.Fatalf("SetLeetCodeUsername failed: %v", err)
+	}
+	if u := GetLeetCodeUsername(); u != "test_user" {
+		t.Errorf("GetLeetCodeUsername() = %q, want test_user", u)
+	}
+
+	// Invalid source returns error
+	if err := SetSource("invalid_source"); err == nil {
+		t.Error("expected error for invalid source, got nil")
+	}
+
+	// Environment variable overrides
+	t.Setenv("GHEPPO_SOURCE", "github")
+	if src := GetSource(); src != SourceGitHub {
+		t.Errorf("GetSource() with GHEPPO_SOURCE=github = %q, want %q", src, SourceGitHub)
+	}
+
+	t.Setenv("GHEPPO_LEETCODE_USERNAME", "env_user")
+	if u := GetLeetCodeUsername(); u != "env_user" {
+		t.Errorf("GetLeetCodeUsername() with env = %q, want env_user", u)
+	}
+}
+
 func containsSubstring(s, sub string) bool {
 	return filepath.Clean(s) != "" && len(s) >= len(sub) && (s == sub || (len(s) > len(sub) && findSub(s, sub)))
 }

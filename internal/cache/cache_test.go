@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dexisback/gheppo/internal/config"
 	"github.com/dexisback/gheppo/internal/stats"
 )
 
@@ -372,4 +373,52 @@ func TestRefreshLockRecoversStaleLock(t *testing.T) {
 	}
 
 	release()
+}
+
+func TestSourceCacheIsolation(t *testing.T) {
+	setupTestCache(t)
+
+	ghSummary := &stats.Summary{Login: "gh-user", Total: 100}
+	lcSummary := &stats.Summary{Login: "lc-user", Total: 200}
+
+	// Save GitHub cache
+	if err := SaveForSource(config.SourceGitHub, ghSummary); err != nil {
+		t.Fatalf("SaveForSource(github) failed: %v", err)
+	}
+
+	// Save LeetCode cache
+	if err := SaveForSource(config.SourceLeetCode, lcSummary); err != nil {
+		t.Fatalf("SaveForSource(leetcode) failed: %v", err)
+	}
+
+	// Verify both can be loaded independently
+	loadedGH, okGH := LoadForSource(config.SourceGitHub)
+	if !okGH || loadedGH.Login != "gh-user" || loadedGH.Total != 100 {
+		t.Errorf("LoadForSource(github) = (%+v, %v), want gh-user with total 100", loadedGH, okGH)
+	}
+
+	loadedLC, okLC := LoadForSource(config.SourceLeetCode)
+	if !okLC || loadedLC.Login != "lc-user" || loadedLC.Total != 200 {
+		t.Errorf("LoadForSource(leetcode) = (%+v, %v), want lc-user with total 200", loadedLC, okLC)
+	}
+}
+
+func TestLegacyCacheFallback(t *testing.T) {
+	dir := setupTestCache(t)
+
+	// Write legacy data.json file
+	legacyPath := filepath.Join(dir, "data.json")
+	legacyData := `{"summary":{"login":"legacy-user","total":50},"fetchedAt":"2026-09-17T00:00:00Z"}`
+	if err := os.WriteFile(legacyPath, []byte(legacyData), 0600); err != nil {
+		t.Fatalf("failed to write legacy cache: %v", err)
+	}
+
+	// Load for github should fallback to data.json
+	loaded, ok := LoadForSource(config.SourceGitHub)
+	if !ok {
+		t.Fatal("LoadForSource(github) failed to fallback to data.json")
+	}
+	if loaded.Login != "legacy-user" || loaded.Total != 50 {
+		t.Errorf("loaded from legacy = %+v, want login legacy-user total 50", loaded)
+	}
 }

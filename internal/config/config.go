@@ -11,11 +11,17 @@ import (
 const (
 	configDirName  = "gheppo"
 	configFileName = "config.json"
+
+	SourceGitHub   = "github"
+	SourceLeetCode = "leetcode"
+	DefaultSource  = SourceGitHub
 )
 
 // Config represents persistent user configuration for Gheppo.
 type Config struct {
-	Theme string `json:"theme"`
+	Theme            string `json:"theme"`
+	Source           string `json:"source,omitempty"`
+	LeetCodeUsername string `json:"leetcodeUsername,omitempty"`
 }
 
 // ConfigDirectoryFunc allows overriding the config directory in tests.
@@ -150,6 +156,92 @@ func SetTheme(name string) error {
 	}
 
 	cfg.Theme = normalized
+	return SaveConfig(cfg)
+}
+
+// AvailableSources returns all supported data source identifiers.
+func AvailableSources() []string {
+	return []string{SourceGitHub, SourceLeetCode}
+}
+
+// IsValidSource reports whether the given source name is supported.
+func IsValidSource(name string) bool {
+	norm := strings.ToLower(strings.TrimSpace(name))
+	return norm == SourceGitHub || norm == SourceLeetCode
+}
+
+// IsSourceConfigured reports whether a data source has been explicitly configured.
+func IsSourceConfigured() bool {
+	if envSrc := strings.ToLower(strings.TrimSpace(os.Getenv("GHEPPO_SOURCE"))); envSrc != "" {
+		return IsValidSource(envSrc)
+	}
+
+	cfg, err := LoadConfig()
+	if err != nil || cfg == nil {
+		return false
+	}
+	return cfg.Source != "" && IsValidSource(cfg.Source)
+}
+
+// GetSource returns the currently active data source.
+// Priority:
+// 1. GHEPPO_SOURCE environment variable
+// 2. Persistent config file
+// 3. Default "github"
+func GetSource() string {
+	if envSrc := strings.ToLower(strings.TrimSpace(os.Getenv("GHEPPO_SOURCE"))); envSrc != "" {
+		if IsValidSource(envSrc) {
+			return envSrc
+		}
+	}
+
+	cfg, err := LoadConfig()
+	if err == nil && cfg != nil && cfg.Source != "" {
+		if IsValidSource(cfg.Source) {
+			return strings.ToLower(cfg.Source)
+		}
+	}
+
+	return DefaultSource
+}
+
+// SetSource updates and persists the active source choice.
+func SetSource(source string) error {
+	normalized := strings.ToLower(strings.TrimSpace(source))
+	if !IsValidSource(normalized) {
+		return fmt.Errorf("unknown source %q (available: %s)", source, strings.Join(AvailableSources(), ", "))
+	}
+
+	cfg, err := LoadConfig()
+	if err != nil || cfg == nil {
+		cfg = &Config{}
+	}
+
+	cfg.Source = normalized
+	return SaveConfig(cfg)
+}
+
+// GetLeetCodeUsername returns the configured LeetCode username.
+func GetLeetCodeUsername() string {
+	if envUser := strings.TrimSpace(os.Getenv("GHEPPO_LEETCODE_USERNAME")); envUser != "" {
+		return envUser
+	}
+
+	cfg, err := LoadConfig()
+	if err == nil && cfg != nil {
+		return cfg.LeetCodeUsername
+	}
+	return ""
+}
+
+// SetLeetCodeUsername updates and persists the LeetCode username.
+func SetLeetCodeUsername(username string) error {
+	cfg, err := LoadConfig()
+	if err != nil || cfg == nil {
+		cfg = &Config{}
+	}
+
+	cfg.LeetCodeUsername = strings.TrimSpace(username)
 	return SaveConfig(cfg)
 }
 

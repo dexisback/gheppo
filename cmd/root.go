@@ -8,20 +8,22 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
+	"github.com/dexisback/gheppo/internal/auth"
 	"github.com/dexisback/gheppo/internal/cache"
+	"github.com/dexisback/gheppo/internal/config"
 	"github.com/dexisback/gheppo/internal/refresh"
 	"github.com/dexisback/gheppo/internal/render"
-
 	"github.com/spf13/cobra"
-	"github.com/dexisback/gheppo/internal/auth"
+	"golang.org/x/term"
 )
 
 var version = "0.1.0"
 
 var rootCmd = &cobra.Command{
 	Use:     "gheppo",
-	Short:   "Your github contribution graph, everytime you open a terminal session",
+	Short:   "Your contribution graph, everytime you open a terminal session",
 	Version: version,
 	RunE:    runDefault,
 }
@@ -30,52 +32,71 @@ func Execute() error {
 	return rootCmd.Execute()
 }
 
-// func runDefault(cmd *cobra.Command, args []string) error {
-// 	summary, ok := cache.Load()
-// 	if !ok {
-// 		fmt.Fprintln(
-// 			cmd.OutOrStdout(),
-// 			"Gheppo isn't set up yet.",
-// 		)
-// 		fmt.Fprintln(
-// 			cmd.OutOrStdout(),
-// 			"Run `gheppo auth login` then `gheppo sync`.",
-// 		)
-// 		return nil
-// 	}
-
-// 	output := render.Grid(summary)
-// 	fmt.Fprintln(cmd.OutOrStdout(), output)
-
-// 	//refresh is deliberately non-critical for the shell startup path
-// 	//the cached graph has alr been rendered, so a refresh failure should never make `gheppo` fail
-// 	_ = refresh.MaybeRefresh()
-
-// 	return nil
-// }
-
-
 func runDefault(cmd *cobra.Command, args []string) error {
-	summary, ok := cache.Load()
+	out := cmd.OutOrStdout()
+	in := cmd.InOrStdin()
+
+	// First-run experience: if source is not yet configured and running interactively,
+	// launch the compact source selector (styled in gruvbox)
+	if !config.IsSourceConfigured() {
+		if term.IsTerminal(int(os.Stdout.Fd())) && term.IsTerminal(int(os.Stdin.Fd())) {
+			chosen, canceled, err := render.RunSourceSelector(in, out)
+			if err != nil {
+				return err
+			}
+			if canceled || chosen == "" {
+				return nil
+			}
+
+			return handleSourceSelection(chosen, in, out)
+		}
+
+		// Non-interactive fallback for first run: default to GitHub
+		_ = config.SetSource(config.SourceGitHub)
+	}
+
+	source := config.GetSource()
+	summary, ok := cache.LoadForSource(source)
 	if !ok {
-		_, err := auth.GetCredentials()
-		if err != nil {
-			fmt.Fprintln(cmd.OutOrStdout(), "Gheppo isn't set up yet.")
-			fmt.Fprintln(cmd.OutOrStdout())
-			fmt.Fprintln(cmd.OutOrStdout(), "Run:")
-			fmt.Fprintln(cmd.OutOrStdout(), "  gheppo auth login")
-			fmt.Fprintln(cmd.OutOrStdout(), "  gheppo sync")
+		if source == config.SourceLeetCode {
+			username := config.GetLeetCodeUsername()
+			if username == "" {
+				if term.IsTerminal(int(os.Stdout.Fd())) && term.IsTerminal(int(os.Stdin.Fd())) {
+					return promptAndSetupLeetCode(in, out)
+				}
+				fmt.Fprintln(out, "No LeetCode username configured.")
+				fmt.Fprintln(out)
+				fmt.Fprintln(out, "Run:")
+				fmt.Fprintln(out, "  gheppo source leetcode <username>")
+				return nil
+			}
+
+			fmt.Fprintln(out, "No contribution data found.")
+			fmt.Fprintln(out)
+			fmt.Fprintln(out, "Run:")
+			fmt.Fprintln(out, "  gheppo sync")
 			return nil
 		}
 
-		fmt.Fprintln(cmd.OutOrStdout(), "No contribution data found.")
-		fmt.Fprintln(cmd.OutOrStdout())
-		fmt.Fprintln(cmd.OutOrStdout(), "Run:")
-		fmt.Fprintln(cmd.OutOrStdout(), "  gheppo sync")
+		// GitHub source
+		_, err := auth.GetCredentials()
+		if err != nil {
+			fmt.Fprintln(out, "Gheppo isn't set up yet.")
+			fmt.Fprintln(out)
+			fmt.Fprintln(out, "Run:")
+			fmt.Fprintln(out, "  gheppo auth login")
+			fmt.Fprintln(out, "  gheppo sync")
+			return nil
+		}
+
+		fmt.Fprintln(out, "No contribution data found.")
+		fmt.Fprintln(out)
+		fmt.Fprintln(out, "Run:")
+		fmt.Fprintln(out, "  gheppo sync")
 		return nil
 	}
 
-	render.Animate(cmd.OutOrStdout(), summary)
+	render.Animate(out, summary)
 
 	_ = refresh.MaybeRefresh()
 	return nil

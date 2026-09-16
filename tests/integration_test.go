@@ -260,3 +260,68 @@ func TestBashIntegrationScript(t *testing.T) {
 		t.Fatalf("non-interactive execution failed for gheppo.bash: %v\n%s", err, out)
 	}
 }
+
+func TestGheppoLeetCodeIntegration(t *testing.T) {
+	binary := buildBinary(t)
+	cacheHome := t.TempDir()
+	configHome := t.TempDir()
+
+	// 1. Write LeetCode configuration
+	cfgDir := filepath.Join(configHome, "gheppo")
+	_ = os.MkdirAll(cfgDir, 0700)
+	cfgJSON := `{"theme":"gruvbox","source":"leetcode","leetcodeUsername":"lc_integration_user"}`
+	if err := os.WriteFile(filepath.Join(cfgDir, "config.json"), []byte(cfgJSON), 0600); err != nil {
+		t.Fatalf("writing config.json: %v", err)
+	}
+
+	// 2. Write LeetCode cache
+	cacheDir := filepath.Join(cacheHome, "gheppo")
+	_ = os.MkdirAll(cacheDir, 0700)
+	lcSummary := &testSummary{
+		Login:         "lc_integration_user",
+		Total:         450,
+		CurrentStreak: 10,
+		LongestStreak: 30,
+		FetchedAt:     time.Now(),
+		Grid: [][]testCell{
+			{
+				{
+					Date:   time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC),
+					Count:  8,
+					Bucket: 4,
+				},
+			},
+		},
+	}
+	lcData := cachedData{
+		Summary:   lcSummary,
+		FetchedAt: lcSummary.FetchedAt,
+	}
+	encoded, _ := json.Marshal(lcData)
+	if err := os.WriteFile(filepath.Join(cacheDir, "data_leetcode.json"), encoded, 0600); err != nil {
+		t.Fatalf("writing data_leetcode.json: %v", err)
+	}
+
+	// 3. Execute gheppo
+	cmd := exec.Command(binary)
+	cmd.Env = []string{
+		"PATH=" + os.Getenv("PATH"),
+		"HOME=" + t.TempDir(),
+		"XDG_CACHE_HOME=" + cacheHome,
+		"XDG_CONFIG_HOME=" + configHome,
+		"NO_COLOR=1",
+	}
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("gheppo returned error: %v\n%s", err, output)
+	}
+
+	outStr := string(output)
+	if !strings.Contains(outStr, "@lc_integration_user") {
+		t.Errorf("output missing LeetCode username: %q", outStr)
+	}
+	if !strings.Contains(strings.ToUpper(outStr), "450 CONTRIBUTIONS") && !strings.Contains(strings.ToUpper(outStr), "450") {
+		t.Errorf("output missing LeetCode total: %q", outStr)
+	}
+}

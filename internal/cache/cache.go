@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/dexisback/gheppo/internal/config"
 	"github.com/dexisback/gheppo/internal/stats"
 )
 
@@ -76,26 +78,45 @@ func defaultCacheDir() (string, error) {
 // 	return dir, nil
 // }
 
-// Load reads the cached summary. ok is false when no valid cache exists yet.
+// cacheFileNameForSource returns the primary and optional legacy fallback file names for a source.
+func cacheFileNameForSource(source string) (primary, fallback string) {
+	switch strings.ToLower(strings.TrimSpace(source)) {
+	case config.SourceLeetCode:
+		return "data_leetcode.json", ""
+	case config.SourceGitHub:
+		return "data_github.json", "data.json"
+	default:
+		return "data_github.json", "data.json"
+	}
+}
+
+// Load reads the cached summary for the currently active data source.
+// ok is false when no valid cache exists yet.
 func Load() (*stats.Summary, bool) {
+	return LoadForSource(config.GetSource())
+}
+
+// LoadForSource reads the cached summary for a specific data source.
+func LoadForSource(source string) (*stats.Summary, bool) {
 	dir, err := cacheDir()
 	if err != nil {
 		return nil, false
 	}
 
-	path := filepath.Join(dir, cacheFileName)
+	primaryFile, fallbackFile := cacheFileNameForSource(source)
+	primaryPath := filepath.Join(dir, primaryFile)
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(primaryPath)
+	if err != nil && fallbackFile != "" {
+		fallbackPath := filepath.Join(dir, fallbackFile)
+		data, err = os.ReadFile(fallbackPath)
+	}
+
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, false
-		}
-
 		return nil, false
 	}
 
 	var cached cachedData
-
 	if err := json.Unmarshal(data, &cached); err != nil {
 		return nil, false
 	}
@@ -113,11 +134,13 @@ func Load() (*stats.Summary, bool) {
 	return cached.Summary, true
 }
 
-// Save automatically writes the summary to the cache.
-// This data is first written to a temporary file and then renamed
-// over the existing cache file. Both files live in the same dir,
-// so the rename is atomic.
+// Save automatically writes the summary to the cache for the currently active source.
 func Save(s *stats.Summary) error {
+	return SaveForSource(config.GetSource(), s)
+}
+
+// SaveForSource writes the summary to the cache for a specific data source.
+func SaveForSource(source string, s *stats.Summary) error {
 	if s == nil {
 		return os.ErrInvalid
 	}
@@ -142,8 +165,9 @@ func Save(s *stats.Summary) error {
 		return err
 	}
 
-	tmpPath := filepath.Join(dir, cacheFileName+".tmp")
-	finalPath := filepath.Join(dir, cacheFileName)
+	primaryFile, _ := cacheFileNameForSource(source)
+	tmpPath := filepath.Join(dir, primaryFile+".tmp")
+	finalPath := filepath.Join(dir, primaryFile)
 
 	if err := os.WriteFile(tmpPath, data, 0600); err != nil {
 		return err

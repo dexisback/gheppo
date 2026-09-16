@@ -49,10 +49,10 @@ func TestRenderStatsPanel(t *testing.T) {
 	if !strings.Contains(joined, "@dexisback") {
 		t.Errorf("stats missing username: %s", joined)
 	}
-	if !strings.Contains(joined, "150 FOLLOWERS") {
+	if !strings.Contains(joined, "150") || !strings.Contains(joined, "FOLLOWERS") {
 		t.Errorf("stats missing followers: %s", joined)
 	}
-	if !strings.Contains(joined, "★ 88 TOTAL STARS") {
+	if !strings.Contains(joined, "88") || !strings.Contains(joined, "TOTAL STARS") {
 		t.Errorf("stats missing stars: %s", joined)
 	}
 }

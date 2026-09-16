@@ -55,6 +55,7 @@ func Animate(w io.Writer, s *stats.Summary) {
 	// Sweep across 8 progressive steps (~140ms total duration)
 	steps := 8
 	stepDelay := 18 * time.Millisecond
+	prevLineCount := 0
 
 	for step := 1; step <= steps; step++ {
 		progress := float64(step) / float64(steps)
@@ -68,20 +69,25 @@ func Animate(w io.Writer, s *stats.Summary) {
 		cardOutput := RenderWithThemeAndState(stepSummary, layout, theme, WordmarkState{Progress: progress})
 
 		lines := strings.Split(cardOutput, "\n")
-		lineCount := len(lines)
+		currentLineCount := len(lines)
 
 		if step == 1 {
-			// First frame: print normally
+			// First frame: print normally without trailing newline
 			fmt.Fprint(w, cardOutput)
 		} else {
-			// Subsequent frames: move cursor up to beginning of card and rewrite
-			fmt.Fprintf(w, "\033[%dA\r%s", lineCount-1, cardOutput)
+			// Subsequent frames: move cursor up exactly (prevLineCount-1) lines, clear screen below, rewrite
+			upCount := prevLineCount - 1
+			if upCount < 1 {
+				upCount = 1
+			}
+			fmt.Fprintf(w, "\033[%dA\r\033[J%s", upCount, cardOutput)
 		}
 
+		prevLineCount = currentLineCount
 		time.Sleep(stepDelay)
 	}
 
-	// Move to next line below the card
+	// Move to next line below the card when animation finishes
 	fmt.Fprintln(w)
 }
 

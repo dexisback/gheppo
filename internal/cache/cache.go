@@ -107,6 +107,9 @@ func Load() (*stats.Summary, bool) {
 	// Restore the cache's fetched timestamp into the summary.
 	cached.Summary.FetchedAt = cached.FetchedAt
 
+	// Ensure derived statistics (BestDay, DailyAverage) are calculated
+	stats.RecomputeDerived(cached.Summary)
+
 	return cached.Summary, true
 }
 

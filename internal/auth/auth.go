@@ -5,8 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
-	
+
 	"github.com/zalando/go-keyring"
 	"golang.org/x/term"
 )
@@ -33,10 +34,26 @@ type storedCredentials struct {
 func GetCredentials() (*Credentials, error) {
 	data, err := keyring.Get(serviceName, username)
 	if err != nil {
-		if errors.Is(err, keyring.ErrNotFound) {
-			return nil, ErrNoToken
+		if !errors.Is(err, keyring.ErrNotFound) {
+			return nil, fmt.Errorf("get credentials from keychain: %w", err)
 		}
-		return nil, fmt.Errorf("get credentials from keychain: %w", err)
+
+		// Fallback to environment variables if keyring has no stored token
+		envKeys := []string{"GITHUB_TOKEN", "GH_TOKEN", "GITHUB_MCP_TOKEN"}
+		for _, key := range envKeys {
+			token := strings.TrimSpace(os.Getenv(key))
+			if token != "" {
+				login, err := resolveLogin(token)
+				if err == nil && login != "" {
+					return &Credentials{
+						Token: token,
+						Login: login,
+					}, nil
+				}
+			}
+		}
+
+		return nil, ErrNoToken
 	}
 
 	var stored storedCredentials

@@ -22,6 +22,9 @@ import (
 func setupTestKeyring(t *testing.T) {
 	t.Helper()
 	keyring.MockInit()
+	t.Setenv("GITHUB_TOKEN", "")
+	t.Setenv("GH_TOKEN", "")
+	t.Setenv("GITHUB_MCP_TOKEN", "")
 }
 
 func TestGetCredentialsNoToken(t *testing.T) {

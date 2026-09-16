@@ -300,3 +300,43 @@ func findBestDay(days []parsedDay) (time.Time, int) {
 	return bestDay, bestCount
 }
 
+// RecomputeDerived recomputes BestDay, BestDayCount, and DailyAverage from the Grid
+// if they are missing or uninitialized (e.g. from an older cache file).
+func RecomputeDerived(s *Summary) {
+	if s == nil || len(s.Grid) == 0 {
+		return
+	}
+
+	var bestDay time.Time
+	bestCount := 0
+	totalDays := 0
+	totalCount := 0
+
+	for _, week := range s.Grid {
+		for _, cell := range week {
+			if cell.Empty || cell.Date.IsZero() {
+				continue
+			}
+			totalDays++
+			totalCount += cell.Count
+			if cell.Count >= bestCount && cell.Count > 0 {
+				bestDay = cell.Date
+				bestCount = cell.Count
+			}
+		}
+	}
+
+	if (s.BestDay.IsZero() || s.BestDayCount == 0) && bestCount > 0 {
+		s.BestDay = bestDay
+		s.BestDayCount = bestCount
+	}
+
+	if s.DailyAverage == 0 && totalDays > 0 {
+		if s.Total > 0 {
+			s.DailyAverage = float64(s.Total) / float64(totalDays)
+		} else {
+			s.DailyAverage = float64(totalCount) / float64(totalDays)
+		}
+	}
+}
+

@@ -32,10 +32,10 @@ func CalculateYearProgressAt(now time.Time) int {
 	return percentage
 }
 
-// RenderSegmentedProgressBar builds a segmented, terminal-native progress bar.
+// RenderSegmentedProgressBar builds a segmented, terminal-native progress bar matching Image 3.
 func RenderSegmentedProgressBar(percentage, width int, theme Theme) string {
 	if width < 1 {
-		width = 10
+		width = 14
 	}
 
 	filled := (percentage * width) / 100
@@ -60,7 +60,7 @@ func RenderSegmentedProgressBar(percentage, width int, theme Theme) string {
 		return bar.String()
 	}
 
-	// High contrast segmented presentation
+	// High contrast segmented presentation matching Image 3
 	bar.WriteString(theme.ActivityHigh)
 	for i := 0; i < filled; i++ {
 		bar.WriteString(fillChar)
@@ -76,20 +76,24 @@ func RenderSegmentedProgressBar(percentage, width int, theme Theme) string {
 	return bar.String()
 }
 
-// RenderYearProgress renders the complete "YEAR [BAR] PERCENTAGE" indicator on a common baseline.
+// RenderYearProgress renders the complete "YEAR [BAR] PERCENTAGE" indicator matching Image 3.
 func RenderYearProgress(year, percentage, barWidth int, theme Theme) (string, int) {
 	yearStr := fmt.Sprintf("%d", year)
 	pctStr := fmt.Sprintf("%d%%", percentage)
+
+	if barWidth < 1 {
+		barWidth = 14
+	}
 
 	bar := RenderSegmentedProgressBar(percentage, barWidth, theme)
 
 	// Visible length: year (4) + space (1) + barWidth + space (1) + len(pctStr)
 	visLen := utf8.RuneCountInString(yearStr) + 1 + barWidth + 1 + utf8.RuneCountInString(pctStr)
 
-	formatted := fmt.Sprintf("%s%s%s %s %s%s%s",
-		theme.Secondary, yearStr, theme.Reset,
+	formatted := fmt.Sprintf("%s%s%s%s %s %s%s%s",
+		theme.Bold, theme.Primary, yearStr, theme.Reset,
 		bar,
-		theme.Primary, pctStr, theme.Reset,
+		theme.Secondary, pctStr, theme.Reset,
 	)
 
 	return formatted, visLen

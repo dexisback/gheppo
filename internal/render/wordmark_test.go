@@ -7,8 +7,8 @@ import (
 
 func TestWordmarkCanvasGeometry(t *testing.T) {
 	canvas := BuildWordmarkCanvas()
-	if canvas.Width != 45 {
-		t.Errorf("expected canvas width 45, got %d", canvas.Width)
+	if canvas.Width != 46 {
+		t.Errorf("expected canvas width 46, got %d", canvas.Width)
 	}
 	if canvas.Height != 3 {
 		t.Errorf("expected canvas height 3, got %d", canvas.Height)
@@ -44,8 +44,8 @@ func TestWordmarkProgressStates(t *testing.T) {
 		if len(lines) != 3 {
 			t.Fatalf("expected 3 lines, got %d for progress %.2f", len(lines), p)
 		}
-		if visLen != 45 {
-			t.Errorf("expected visLen 45, got %d for progress %.2f", visLen, p)
+		if visLen != 46 {
+			t.Errorf("expected visLen 46, got %d for progress %.2f", visLen, p)
 		}
 
 		// Count non-space characters
@@ -127,7 +127,7 @@ func TestWordmarkColorModes(t *testing.T) {
 func TestWordmarkResponsiveWidth(t *testing.T) {
 	theme := GetTheme(ColorASCII, ThemeDark)
 
-	// Width constrained to 40 (trace trimmed by 5)
+	// Width constrained to 40 (trace trimmed by 6)
 	lines40, visLen40 := RenderWordmarkWithStateAndWidth(theme, WordmarkState{Progress: 1.0}, 40)
 	if visLen40 != 40 {
 		t.Errorf("expected visLen 40, got %d", visLen40)

@@ -28,12 +28,12 @@ type WordmarkState struct {
 }
 
 const (
-	defaultWordmarkWidth = 45
-	maxTraceShift        = 13
+	defaultWordmarkWidth = 46
+	maxTraceShift        = 14
 )
 
-// BuildWordmarkCanvas constructs the default full-width (45 cols) geometric representation of the
-// procedural trace and the custom block-letter GHEPPO wordmark.
+// BuildWordmarkCanvas constructs the default full-width (46 cols) geometric representation of the
+// procedural trace and the custom block-letter GHEPPO wordmark matching Image 3.
 func BuildWordmarkCanvas() WordmarkCanvas {
 	return BuildWordmarkCanvasWithWidth(defaultWordmarkWidth)
 }
@@ -65,12 +65,12 @@ func BuildWordmarkCanvasWithWidth(maxWidth int) WordmarkCanvas {
 	}
 
 	// =========================================================================
-	// 1. TRACE PATH & CONNECTOR (Cols 0..12) — Progress: [0.00, 0.35]
+	// 1. TRACE PATH & CONNECTOR (Cols 0..13) — Progress: [0.00, 0.35]
 	// =========================================================================
 	// Row 0 satellite dots & top bracket
-	add(0, 3, "▪", "-", 1, 0.08)
-	add(0, 7, "▪", "-", 2, 0.18)
-	add(0, 12, "▄", "-", 3, 0.32)
+	add(0, 4, "▪", "-", 1, 0.08)
+	add(0, 8, "▪", "-", 2, 0.18)
+	add(0, 13, "▄", "-", 3, 0.32)
 
 	// Row 1 main horizontal data path leading directly into G
 	add(1, 0, "▪", ".", 1, 0.00)
@@ -79,17 +79,20 @@ func BuildWordmarkCanvasWithWidth(maxWidth int) WordmarkCanvas {
 	add(1, 6, "▪", "-", 2, 0.15)
 	add(1, 8, "▪", "-", 2, 0.20)
 	add(1, 10, "█", "=", 3, 0.25)
-	add(1, 12, "█", "#", 4, 0.32)
+	add(1, 12, "█", "=", 3, 0.30)
 
 	// Row 2 satellite dots & bottom bracket
 	add(2, 2, "▪", "-", 1, 0.06)
 	add(2, 6, "▪", "-", 2, 0.16)
-	add(2, 12, "▀", "-", 3, 0.32)
+	add(2, 13, "▀", "-", 3, 0.32)
 
 	// =========================================================================
-	// 2. LETTER G (Cols 13..17, Width 5) — Progress: [0.35, 0.48]
+	// 2. LETTER G (Cols 14..18, Width 5) — Progress: [0.35, 0.48]
+	// Row 0: █████
+	// Row 1: █  ██
+	// Row 2: █████
 	// =========================================================================
-	gOffset := 13
+	gOffset := 14
 	for c := 0; c < 5; c++ {
 		t := 0.35 + float64(c)*0.026
 		add(0, gOffset+c, "█", "#", 3, t)
@@ -99,12 +102,15 @@ func BuildWordmarkCanvasWithWidth(maxWidth int) WordmarkCanvas {
 		add(2, gOffset+c, "█", "#", 3, t)
 	}
 
-	// Space at 18
+	// Space at 19
 
 	// =========================================================================
-	// 3. LETTER H (Cols 19..23, Width 5) — Progress: [0.48, 0.58]
+	// 3. LETTER H (Cols 20..24, Width 5) — Progress: [0.48, 0.58]
+	// Row 0: █   █
+	// Row 1: █████
+	// Row 2: █   █
 	// =========================================================================
-	hOffset := 19
+	hOffset := 20
 	for c := 0; c < 5; c++ {
 		t := 0.48 + float64(c)*0.02
 		if c == 0 || c == 4 {
@@ -114,63 +120,73 @@ func BuildWordmarkCanvasWithWidth(maxWidth int) WordmarkCanvas {
 		add(1, hOffset+c, "█", "#", 3, t)
 	}
 
-	// Space at 24
+	// Space at 25
 
 	// =========================================================================
-	// 4. LETTER E (Cols 25..28, Width 4) — Progress: [0.58, 0.68]
+	// 4. LETTER E (Cols 26..29, Width 4) — Progress: [0.58, 0.68]
+	// Row 0: ████
+	// Row 1: ███ 
+	// Row 2: ████
 	// =========================================================================
-	eOffset := 25
+	eOffset := 26
 	for c := 0; c < 4; c++ {
 		t := 0.58 + float64(c)*0.025
 		add(0, eOffset+c, "█", "#", 3, t)
-		add(1, eOffset+c, "█", "#", 3, t)
+		if c < 3 {
+			add(1, eOffset+c, "█", "#", 3, t)
+		}
 		add(2, eOffset+c, "█", "#", 3, t)
 	}
 
-	// Space at 29
+	// Space at 30
 
 	// =========================================================================
-	// 5. LETTER P1 (Cols 30..33, Width 4) — Progress: [0.68, 0.78]
+	// 5. LETTER P1 (Cols 31..34, Width 4) — Progress: [0.68, 0.78]
+	// Row 0: ████
+	// Row 1: █  █
+	// Row 2: █   
 	// =========================================================================
-	p1Offset := 30
+	p1Offset := 31
 	for c := 0; c < 4; c++ {
 		t := 0.68 + float64(c)*0.025
 		add(0, p1Offset+c, "█", "#", 3, t)
 		if c == 0 || c == 3 {
 			add(1, p1Offset+c, "█", "#", 3, t)
-		} else {
-			add(1, p1Offset+c, "▄", "=", 3, t)
 		}
 		if c == 0 {
 			add(2, p1Offset+c, "█", "#", 3, t)
 		}
 	}
 
-	// Space at 34
+	// Space at 35
 
 	// =========================================================================
-	// 6. LETTER P2 (Cols 35..38, Width 4) — Progress: [0.78, 0.88]
+	// 6. LETTER P2 (Cols 36..39, Width 4) — Progress: [0.78, 0.88]
+	// Row 0: ████
+	// Row 1: █  █
+	// Row 2: █   
 	// =========================================================================
-	p2Offset := 35
+	p2Offset := 36
 	for c := 0; c < 4; c++ {
 		t := 0.78 + float64(c)*0.025
 		add(0, p2Offset+c, "█", "#", 3, t)
 		if c == 0 || c == 3 {
 			add(1, p2Offset+c, "█", "#", 3, t)
-		} else {
-			add(1, p2Offset+c, "▄", "=", 3, t)
 		}
 		if c == 0 {
 			add(2, p2Offset+c, "█", "#", 3, t)
 		}
 	}
 
-	// Space at 39
+	// Space at 40
 
 	// =========================================================================
-	// 7. LETTER O (Cols 40..44, Width 5) — Progress: [0.88, 1.00]
+	// 7. LETTER O (Cols 41..45, Width 5) — Progress: [0.88, 1.00]
+	// Row 0: █████
+	// Row 1: █   █
+	// Row 2: █████
 	// =========================================================================
-	oOffset := 40
+	oOffset := 41
 	for c := 0; c < 5; c++ {
 		t := 0.88 + float64(c)*0.024
 		add(0, oOffset+c, "█", "#", 3, t)

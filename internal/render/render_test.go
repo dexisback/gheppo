@@ -171,9 +171,9 @@ func TestGridFullCardElements(t *testing.T) {
 
 	output := Grid(summary)
 
-	// 1. Check rectangular border
-	if !strings.Contains(output, "+-") || !strings.Contains(output, "-+") {
-		t.Errorf("output missing ASCII border: %q", output)
+	// 1. Check vertical divider between columns
+	if !strings.Contains(output, "|") {
+		t.Errorf("output missing vertical divider: %q", output)
 	}
 
 	// 2. Check year and total contributions

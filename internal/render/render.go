@@ -3,7 +3,6 @@ package render
 import (
 	"fmt"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"github.com/dexisback/gheppo/internal/stats"
@@ -63,13 +62,13 @@ func RenderWithThemeAndState(s *stats.Summary, layout Layout, theme Theme, wordm
 	graphConfig := DefaultGraphConfig()
 	graphRows := RenderContributionGraph(graph, theme, graphConfig)
 	monthHeader := RenderMonthHeader(graph.Weeks, layout.GraphWidth)
-	statsRows := RenderStatsPanel(s, theme)
+	statsRows := RenderStatsPanelWithWidth(s, theme, layout.StatsWidth)
 
-	// 2. Compose into outer card
+	// 2. Compose into clean dashboard matching Image 3
 	return ComposeWithState(s, layout, theme, graphRows, monthHeader, statsRows, wordmarkState)
 }
 
-// Compose assembles all rendered visual components inside a single outer frame with fully resolved wordmark.
+// Compose assembles all rendered visual components inside a single frameless card with fully resolved wordmark.
 func Compose(
 	s *stats.Summary,
 	layout Layout,
@@ -81,7 +80,7 @@ func Compose(
 	return ComposeWithState(s, layout, theme, graphRows, monthHeader, statsRows, WordmarkState{Progress: 1.0})
 }
 
-// ComposeWithState assembles all rendered components with external wordmark animation progress state.
+// ComposeWithState assembles all rendered components with external wordmark animation progress state matching Image 3.
 func ComposeWithState(
 	s *stats.Summary,
 	layout Layout,
@@ -91,200 +90,195 @@ func ComposeWithState(
 	statsRows []StatsRow,
 	wordmarkState WordmarkState,
 ) string {
-	var (
-		cornerTL, cornerTR, cornerBL, cornerBR string
-		horizontalBar, verticalBar             string
-	)
-
+	var verticalBar string
 	if theme.Mode == ColorASCII {
-		cornerTL, cornerTR, cornerBL, cornerBR = "+", "+", "+", "+"
-		horizontalBar, verticalBar = "-", "|"
+		verticalBar = "|"
 	} else {
-		cornerTL, cornerTR, cornerBL, cornerBR = "┌", "┐", "└", "┘"
-		horizontalBar, verticalBar = "─", "│"
+		verticalBar = "│"
 	}
 
-	innerWidth := layout.InnerWidth
-	if innerWidth < 20 {
-		innerWidth = 20
+	margin := "  "
+	if layout.LeftMargin >= 0 {
+		margin = strings.Repeat(" ", layout.LeftMargin)
 	}
 
-	var lines []string
-
-	addLine := func(content string, visibleLen int) {
-		lines = append(lines, formatFramedLine(content, visibleLen, innerWidth, layout.LeftMargin, theme, verticalBar))
+	// If terminal is too narrow to display two columns side by side (< 65 cols), use compact stacked composition
+	if layout.TerminalWidth < 65 {
+		return composeStacked(s, layout, theme, graphRows, monthHeader, statsRows, wordmarkState)
 	}
 
-	addEmptyLine := func() {
-		addLine("", 0)
+	// === 1. PREPARE 17 LEFT-SIDE ROWS ===
+	leftRows := make([]string, 17)
+	leftVisLens := make([]int, 17)
+
+	// Wordmark on rows 0, 1, 2
+	wordmarkWidth := layout.GraphWidth
+	if wordmarkWidth > 46 {
+		wordmarkWidth = 46
+	}
+	wordmarkLines, wordmarkVisLen := RenderWordmarkWithStateAndWidth(theme, wordmarkState, wordmarkWidth)
+	for r := 0; r < 3; r++ {
+		if r < len(wordmarkLines) {
+			leftRows[r] = wordmarkLines[r]
+			leftVisLens[r] = wordmarkVisLen
+		}
 	}
 
-	// === TOP BORDER ===
-	topBorder := fmt.Sprintf("%s%s%s%s%s",
-		theme.Border,
-		cornerTL,
-		strings.Repeat(horizontalBar, layout.CardWidth-2),
-		cornerTR,
-		theme.Reset,
-	)
-	if layout.LeftMargin > 0 {
-		topBorder = strings.Repeat(" ", layout.LeftMargin) + topBorder
-	}
-	lines = append(lines, topBorder)
+	// Row 3: Empty
+	leftRows[3] = ""
+	leftVisLens[3] = 0
 
-	addEmptyLine()
-
-	// === HEADER: CUSTOM WORDMARK + YEAR PROGRESS BAR ===
-	wordmarkLines, wordmarkVisLen := RenderWordmarkWithStateAndWidth(theme, wordmarkState, innerWidth)
-
-	year := time.Now().Year()
-	if !s.FetchedAt.IsZero() {
-		year = s.FetchedAt.Year()
-	}
-	yearProgress := CalculateYearProgress()
-
-	// Progress bar width adapts to right stats panel width
-	barWidth := layout.StatsWidth - 9
-	if barWidth < 5 {
-		barWidth = 5
-	}
-	if barWidth > 25 {
-		barWidth = 25
-	}
-
-	progressStr, progressVisLen := RenderYearProgress(year, yearProgress, barWidth, theme)
-
-	// Combine Wordmark Row 0 with Year Progress on the right if space allows
-	if wordmarkVisLen+progressVisLen+2 <= innerWidth {
-		spacing := innerWidth - wordmarkVisLen - progressVisLen
-		headerRow0 := fmt.Sprintf("%s%s%s",
-			wordmarkLines[0],
-			strings.Repeat(" ", spacing),
-			progressStr,
-		)
-		addLine(headerRow0, innerWidth)
-	} else {
-		addLine(wordmarkLines[0], wordmarkVisLen)
-	}
-
-	// Wordmark Row 1 & Row 2
-	if len(wordmarkLines) > 1 {
-		addLine(wordmarkLines[1], wordmarkVisLen)
-	}
-	if len(wordmarkLines) > 2 {
-		addLine(wordmarkLines[2], wordmarkVisLen)
-	}
-
-	// If progress bar could not fit inline on Row 0, output on its own line
-	if wordmarkVisLen+progressVisLen+2 > innerWidth {
-		addLine(progressStr, progressVisLen)
-	}
-
-	addEmptyLine()
-
-	// === SUBHEADER: TOTAL CONTRIBUTIONS ===
-	var numStr, labelStr string
-	numStr = formatNumber(s.Total)
+	// Row 4: Total Contributions
+	numStr := formatNumber(s.Total)
+	labelStr := "CONTRIBUTIONS"
 	if s.Total == 1 {
 		labelStr = "CONTRIBUTION"
-	} else {
-		labelStr = "CONTRIBUTIONS"
 	}
-
-	var totalContent string
 	if theme.Mode == ColorASCII {
-		totalContent = fmt.Sprintf("%s %s", numStr, labelStr)
+		leftRows[4] = fmt.Sprintf("%s %s", numStr, labelStr)
 	} else {
-		totalContent = fmt.Sprintf("%s%s%s%s %s%s%s",
+		leftRows[4] = fmt.Sprintf("%s%s%s%s %s%s%s",
 			theme.Bold, theme.Primary, numStr, theme.Reset,
 			theme.Secondary, labelStr, theme.Reset,
 		)
 	}
-	totalVisLen := utf8.RuneCountInString(numStr) + 1 + utf8.RuneCountInString(labelStr)
-	addLine(totalContent, totalVisLen)
+	leftVisLens[4] = len(numStr) + 1 + len(labelStr)
 
-	addEmptyLine()
+	// Row 5: Empty
+	leftRows[5] = ""
+	leftVisLens[5] = 0
 
-	// === MONTH LABELS ===
+	// Row 6: Month Header
 	if monthHeader != "" {
-		coloredMonth := fmt.Sprintf("%s%s%s", theme.Secondary, monthHeader, theme.Reset)
-		addLine(coloredMonth, utf8.RuneCountInString(monthHeader))
+		if theme.Mode == ColorASCII {
+			leftRows[6] = monthHeader
+		} else {
+			leftRows[6] = theme.Secondary + monthHeader + theme.Reset
+		}
+		leftVisLens[6] = utf8.RuneCountInString(monthHeader)
+	} else {
+		leftRows[6] = ""
+		leftVisLens[6] = 0
 	}
 
-	// === TWO-COLUMN LAYOUT: GRAPH | STATS ===
-	maxRows := layout.GraphHeight
-	if len(statsRows) > maxRows {
-		maxRows = len(statsRows)
+	// Rows 7..13: 7 Graph Rows (Sun..Sat)
+	for w := 0; w < 7; w++ {
+		if w < len(graphRows) {
+			leftRows[7+w] = graphRows[w]
+			leftVisLens[7+w] = layout.GraphWidth
+		}
+	}
+
+	// Rows 14..16: Empty
+	leftRows[14] = ""
+	leftVisLens[14] = 0
+	leftRows[15] = ""
+	leftVisLens[15] = 0
+	leftRows[16] = ""
+	leftVisLens[16] = 0
+
+	// === 2. ASSEMBLE PARALLEL ROWS WITH VERTICAL DIVIDER ===
+	totalRows := 17
+	if len(statsRows) > totalRows {
+		totalRows = len(statsRows)
 	}
 
 	divider := theme.Border + verticalBar + theme.Reset
+	gapDivider := "  " + divider + "  "
+	if layout.DividerWidth <= 3 {
+		gapDivider = " " + divider + " "
+	}
 
-	for i := 0; i < maxRows; i++ {
-		var graphPart string
-		if i < len(graphRows) {
-			graphPart = graphRows[i]
-		} else {
-			graphPart = strings.Repeat(" ", layout.GraphWidth)
+	var lines []string
+	for i := 0; i < totalRows; i++ {
+		var leftContent string
+		var leftVis int
+		if i < len(leftRows) {
+			leftContent = leftRows[i]
+			leftVis = leftVisLens[i]
 		}
+		padLeft := layout.GraphWidth - leftVis
+		if padLeft < 0 {
+			padLeft = 0
+		}
+		leftPart := leftContent + strings.Repeat(" ", padLeft)
 
-		var statsPart string
-		statsVisLen := 0
+		var rightPart string
 		if i < len(statsRows) {
-			statsPart = statsRows[i].Content
-			statsVisLen = statsRows[i].VisibleLen
+			rightPart = statsRows[i].Content
 		}
 
-		statsAreaWidth := innerWidth - layout.GraphWidth - layout.DividerWidth
-		if statsAreaWidth < 0 {
-			statsAreaWidth = 0
-		}
-
-		statsPadding := statsAreaWidth - statsVisLen
-		if statsPadding < 0 {
-			statsPadding = 0
-		}
-
-		combinedContent := graphPart + " " + divider + " " + statsPart + strings.Repeat(" ", statsPadding)
-		addLine(combinedContent, innerWidth)
+		line := margin + leftPart + gapDivider + rightPart
+		lines = append(lines, line)
 	}
-
-	addEmptyLine()
-
-	// === BOTTOM BORDER ===
-	bottomBorder := fmt.Sprintf("%s%s%s%s%s",
-		theme.Border,
-		cornerBL,
-		strings.Repeat(horizontalBar, layout.CardWidth-2),
-		cornerBR,
-		theme.Reset,
-	)
-	if layout.LeftMargin > 0 {
-		bottomBorder = strings.Repeat(" ", layout.LeftMargin) + bottomBorder
-	}
-	lines = append(lines, bottomBorder)
 
 	return strings.Join(lines, "\n")
 }
 
-// formatFramedLine formats a single row within the outer box border with left and right margins/padding.
-func formatFramedLine(content string, visibleLen int, innerWidth int, leftMargin int, theme Theme, verticalBar string) string {
-	pad := innerWidth - visibleLen
-	if pad < 0 {
-		pad = 0
+func composeStacked(
+	s *stats.Summary,
+	layout Layout,
+	theme Theme,
+	graphRows []string,
+	monthHeader string,
+	statsRows []StatsRow,
+	wordmarkState WordmarkState,
+) string {
+	margin := " "
+	if layout.LeftMargin > 0 {
+		margin = strings.Repeat(" ", layout.LeftMargin)
 	}
-	var b strings.Builder
-	if leftMargin > 0 {
-		b.WriteString(strings.Repeat(" ", leftMargin))
+
+	var lines []string
+	addLine := func(c string) {
+		lines = append(lines, margin+c)
 	}
-	b.WriteString(theme.Border)
-	b.WriteString(verticalBar)
-	b.WriteString(" ")
-	b.WriteString(theme.Reset)
-	b.WriteString(content)
-	b.WriteString(strings.Repeat(" ", pad))
-	b.WriteString(theme.Border)
-	b.WriteString(" ")
-	b.WriteString(verticalBar)
-	b.WriteString(theme.Reset)
-	return b.String()
+
+	// 1. Wordmark
+	availW := layout.TerminalWidth - len(margin)
+	wLines, _ := RenderWordmarkWithStateAndWidth(theme, wordmarkState, availW)
+	for _, l := range wLines {
+		addLine(l)
+	}
+
+	// 2. Year Progress
+	year := 2026
+	if !s.FetchedAt.IsZero() {
+		year = s.FetchedAt.Year()
+	}
+	progressStr, _ := RenderYearProgress(year, CalculateYearProgress(), 8, theme)
+	addLine(progressStr)
+
+	// 3. Total
+	numStr := formatNumber(s.Total)
+	labelStr := "CONTRIBUTIONS"
+	if s.Total == 1 {
+		labelStr = "CONTRIBUTION"
+	}
+	if theme.Mode == ColorASCII {
+		addLine(fmt.Sprintf("%s %s", numStr, labelStr))
+	} else {
+		addLine(fmt.Sprintf("%s%s%s%s %s%s%s", theme.Bold, theme.Primary, numStr, theme.Reset, theme.Secondary, labelStr, theme.Reset))
+	}
+
+	// 4. Month header + Graph
+	if monthHeader != "" {
+		if theme.Mode == ColorASCII {
+			addLine(monthHeader)
+		} else {
+			addLine(theme.Secondary + monthHeader + theme.Reset)
+		}
+	}
+	for _, gr := range graphRows {
+		addLine(gr)
+	}
+
+	// 5. Stats
+	for _, sr := range statsRows {
+		if sr.Content != "" {
+			addLine(sr.Content)
+		}
+	}
+
+	return strings.Join(lines, "\n")
 }

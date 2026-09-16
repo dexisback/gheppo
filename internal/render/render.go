@@ -49,6 +49,11 @@ func RenderCard(s *stats.Summary, layout LayoutConfig, mode ColorMode, themeMode
 
 // RenderWithTheme produces the fully composed terminal card from the given layout and theme.
 func RenderWithTheme(s *stats.Summary, layout Layout, theme Theme) string {
+	return RenderWithThemeAndState(s, layout, theme, WordmarkState{Progress: 1.0})
+}
+
+// RenderWithThemeAndState produces the terminal card from layout, theme, and animated wordmark state.
+func RenderWithThemeAndState(s *stats.Summary, layout Layout, theme Theme, wordmarkState WordmarkState) string {
 	if s == nil {
 		return ""
 	}
@@ -61,10 +66,10 @@ func RenderWithTheme(s *stats.Summary, layout Layout, theme Theme) string {
 	statsRows := RenderStatsPanel(s, theme)
 
 	// 2. Compose into outer card
-	return Compose(s, layout, theme, graphRows, monthHeader, statsRows)
+	return ComposeWithState(s, layout, theme, graphRows, monthHeader, statsRows, wordmarkState)
 }
 
-// Compose assembles all rendered visual components inside a single outer frame.
+// Compose assembles all rendered visual components inside a single outer frame with fully resolved wordmark.
 func Compose(
 	s *stats.Summary,
 	layout Layout,
@@ -72,6 +77,19 @@ func Compose(
 	graphRows []string,
 	monthHeader string,
 	statsRows []StatsRow,
+) string {
+	return ComposeWithState(s, layout, theme, graphRows, monthHeader, statsRows, WordmarkState{Progress: 1.0})
+}
+
+// ComposeWithState assembles all rendered components with external wordmark animation progress state.
+func ComposeWithState(
+	s *stats.Summary,
+	layout Layout,
+	theme Theme,
+	graphRows []string,
+	monthHeader string,
+	statsRows []StatsRow,
+	wordmarkState WordmarkState,
 ) string {
 	var (
 		cornerTL, cornerTR, cornerBL, cornerBR string
@@ -116,15 +134,16 @@ func Compose(
 
 	addEmptyLine()
 
-	// === HEADER LINE: WORDMARK + YEAR PROGRESS BAR ===
-	wordmark := GetWordmark(theme.Mode)
+	// === HEADER: CUSTOM WORDMARK + YEAR PROGRESS BAR ===
+	wordmarkLines, wordmarkVisLen := RenderWordmarkWithStateAndWidth(theme, wordmarkState, innerWidth)
+
 	year := time.Now().Year()
 	if !s.FetchedAt.IsZero() {
 		year = s.FetchedAt.Year()
 	}
 	yearProgress := CalculateYearProgress()
 
-	// Bar width adapts to right stats panel width: statsWidth - 9 (year: 4, space: 1, space: 1, pct: 3)
+	// Progress bar width adapts to right stats panel width
 	barWidth := layout.StatsWidth - 9
 	if barWidth < 5 {
 		barWidth = 5
@@ -134,29 +153,55 @@ func Compose(
 	}
 
 	progressStr, progressVisLen := RenderYearProgress(year, yearProgress, barWidth, theme)
-	wordmarkVisLen := utf8.RuneCountInString(wordmark)
 
+	// Combine Wordmark Row 0 with Year Progress on the right if space allows
 	if wordmarkVisLen+progressVisLen+2 <= innerWidth {
 		spacing := innerWidth - wordmarkVisLen - progressVisLen
-		headerContent := fmt.Sprintf("%s%s%s%s%s",
-			theme.Primary, wordmark, theme.Reset,
+		headerRow0 := fmt.Sprintf("%s%s%s",
+			wordmarkLines[0],
 			strings.Repeat(" ", spacing),
 			progressStr,
 		)
-		addLine(headerContent, innerWidth)
+		addLine(headerRow0, innerWidth)
 	} else {
-		addLine(fmt.Sprintf("%s%s%s", theme.Primary, wordmark, theme.Reset), wordmarkVisLen)
+		addLine(wordmarkLines[0], wordmarkVisLen)
+	}
+
+	// Wordmark Row 1 & Row 2
+	if len(wordmarkLines) > 1 {
+		addLine(wordmarkLines[1], wordmarkVisLen)
+	}
+	if len(wordmarkLines) > 2 {
+		addLine(wordmarkLines[2], wordmarkVisLen)
+	}
+
+	// If progress bar could not fit inline on Row 0, output on its own line
+	if wordmarkVisLen+progressVisLen+2 > innerWidth {
 		addLine(progressStr, progressVisLen)
 	}
 
+	addEmptyLine()
+
 	// === SUBHEADER: TOTAL CONTRIBUTIONS ===
-	var totalStr string
+	var numStr, labelStr string
+	numStr = formatNumber(s.Total)
 	if s.Total == 1 {
-		totalStr = "1 CONTRIBUTION"
+		labelStr = "CONTRIBUTION"
 	} else {
-		totalStr = fmt.Sprintf("%s CONTRIBUTIONS", formatNumber(s.Total))
+		labelStr = "CONTRIBUTIONS"
 	}
-	addLine(fmt.Sprintf("%s%s%s", theme.Primary, totalStr, theme.Reset), utf8.RuneCountInString(totalStr))
+
+	var totalContent string
+	if theme.Mode == ColorASCII {
+		totalContent = fmt.Sprintf("%s %s", numStr, labelStr)
+	} else {
+		totalContent = fmt.Sprintf("%s%s%s%s %s%s%s",
+			theme.Bold, theme.Primary, numStr, theme.Reset,
+			theme.Secondary, labelStr, theme.Reset,
+		)
+	}
+	totalVisLen := utf8.RuneCountInString(numStr) + 1 + utf8.RuneCountInString(labelStr)
+	addLine(totalContent, totalVisLen)
 
 	addEmptyLine()
 

@@ -29,7 +29,7 @@ func ShouldAnimate() bool {
 	return term.IsTerminal(int(os.Stdout.Fd()))
 }
 
-// Animate plays a progressive 120ms graph reveal on stdout in interactive terminals.
+// Animate plays a progressive trace-draw and graph reveal on stdout in interactive terminals.
 func Animate(w io.Writer, s *stats.Summary) {
 	if s == nil {
 		return
@@ -41,7 +41,8 @@ func Animate(w io.Writer, s *stats.Summary) {
 	}
 
 	mode := DetectColorMode()
-	theme := DetectTheme()
+	themeMode := DetectTheme()
+	theme := GetTheme(mode, themeMode)
 	termWidth := GetTerminalWidth()
 
 	totalWeeks := 0
@@ -49,22 +50,22 @@ func Animate(w io.Writer, s *stats.Summary) {
 		totalWeeks = len(s.Grid)
 	}
 
-	layout := ComputeLayout(termWidth, totalWeeks)
+	layout := CalculateLayout(termWidth, totalWeeks)
 
-	// Step count for progressive sweep
-	steps := 5
-	stepDelay := 20 * time.Millisecond
+	// Sweep across 8 progressive steps (~140ms total duration)
+	steps := 8
+	stepDelay := 18 * time.Millisecond
 
-	// Render progressive frames
 	for step := 1; step <= steps; step++ {
-		revealedWeeks := (layout.VisibleWeeks * step) / steps
+		progress := float64(step) / float64(steps)
+		revealedWeeks := int(float64(layout.VisibleWeeks) * progress)
 		if revealedWeeks < 1 {
 			revealedWeeks = 1
 		}
 
-		// Create a temporary summary copy with progressive cell reveal
+		// Progressive cell reveal in graph along with progressive trace-draw in wordmark
 		stepSummary := createStepSummary(s, layout.VisibleWeeks, revealedWeeks)
-		cardOutput := RenderCard(stepSummary, layout, mode, theme)
+		cardOutput := RenderWithThemeAndState(stepSummary, layout, theme, WordmarkState{Progress: progress})
 
 		lines := strings.Split(cardOutput, "\n")
 		lineCount := len(lines)
@@ -120,6 +121,13 @@ func createStepSummary(s *stats.Summary, visibleCount, revealedLimit int) *stats
 		CurrentStreak: s.CurrentStreak,
 		LongestStreak: s.LongestStreak,
 		FetchedAt:     s.FetchedAt,
+		Followers:     s.Followers,
+		Following:     s.Following,
+		Repos:         s.Repos,
+		TotalStars:    s.TotalStars,
+		BestDay:       s.BestDay,
+		BestDayCount:  s.BestDayCount,
+		DailyAverage:  s.DailyAverage,
 		Grid:          clonedGrid,
 	}
 }

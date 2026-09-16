@@ -1,5 +1,5 @@
 // Package leetcode communicates with LeetCode's public GraphQL API to retrieve
-// user submission statistics and activity calendar.
+// user submission statistics, difficulty breakdown, contest ranking, and activity calendar.
 package leetcode
 
 import (
@@ -71,6 +71,13 @@ type leetcodeUserResponse struct {
 				SubmissionCalendar string `json:"submissionCalendar"`
 			} `json:"userCalendar"`
 		} `json:"matchedUser"`
+		UserContestRanking *struct {
+			AttendedContestsCount int     `json:"attendedContestsCount"`
+			Rating                float64 `json:"rating"`
+			GlobalRanking         int     `json:"globalRanking"`
+			TotalParticipants     int     `json:"totalParticipants"`
+			TopPercentage         float64 `json:"topPercentage"`
+		} `json:"userContestRanking"`
 	} `json:"data"`
 	Errors []struct {
 		Message string `json:"message"`
@@ -98,6 +105,13 @@ query getUserProfile($username: String!) {
       totalActiveDays
       submissionCalendar
     }
+  }
+  userContestRanking(username: $username) {
+    attendedContestsCount
+    rating
+    globalRanking
+    totalParticipants
+    topPercentage
   }
 }
 `
@@ -194,17 +208,27 @@ func (c *Client) FetchUserSummary(username string) (*stats.Summary, error) {
 		weeks = append(weeks, github.Week{Days: days})
 	}
 
+	easySolved := 0
+	mediumSolved := 0
+	hardSolved := 0
 	totalSolved := 0
 	totalSubmissions := 0
+
 	subList := user.SubmitStats.AcSubmissionNum
 	if len(subList) == 0 {
 		subList = user.SubmitStatsGlobal.AcSubmissionNum
 	}
 	for _, num := range subList {
-		if strings.EqualFold(num.Difficulty, "All") {
+		switch strings.ToLower(num.Difficulty) {
+		case "all":
 			totalSolved = num.Count
 			totalSubmissions = num.Submissions
-			break
+		case "easy":
+			easySolved = num.Count
+		case "medium":
+			mediumSolved = num.Count
+		case "hard":
+			hardSolved = num.Count
 		}
 	}
 
@@ -219,6 +243,21 @@ func (c *Client) FetchUserSummary(username string) (*stats.Summary, error) {
 	}
 
 	summary := stats.Summarize(cal)
+	summary.Source = "leetcode"
 	summary.Login = user.Username
+	summary.Total = totalSolved // Primary number: problems solved
+	summary.ProblemsSolved = totalSolved
+	summary.EasySolved = easySolved
+	summary.MediumSolved = mediumSolved
+	summary.HardSolved = hardSolved
+	summary.Reputation = user.Profile.Reputation
+
+	if userResp.Data.UserContestRanking != nil && userResp.Data.UserContestRanking.Rating > 0 {
+		summary.ContestRating = userResp.Data.UserContestRanking.Rating
+		summary.GlobalRanking = userResp.Data.UserContestRanking.GlobalRanking
+	} else if user.Profile.Ranking > 0 {
+		summary.GlobalRanking = user.Profile.Ranking
+	}
+
 	return summary, nil
 }

@@ -40,6 +40,13 @@ func TestFetchUserSummarySuccess(t *testing.T) {
 						"totalActiveDays": 90,
 						"submissionCalendar": %q
 					}
+				},
+				"userContestRanking": {
+					"attendedContestsCount": 35,
+					"rating": 2450.5,
+					"globalRanking": 120,
+					"totalParticipants": 500000,
+					"topPercentage": 0.02
 				}
 			}
 		}`, calendarJSON)
@@ -63,17 +70,29 @@ func TestFetchUserSummarySuccess(t *testing.T) {
 	if summary.Login != "tourist" {
 		t.Errorf("summary.Login = %q, want tourist", summary.Login)
 	}
-	if summary.Repos != 1500 {
-		t.Errorf("summary.Repos (total solved) = %d, want 1500", summary.Repos)
+	if summary.Source != "leetcode" {
+		t.Errorf("summary.Source = %q, want leetcode", summary.Source)
 	}
-	if summary.Followers != 42 {
-		t.Errorf("summary.Followers (ranking) = %d, want 42", summary.Followers)
+	if summary.ProblemsSolved != 1500 {
+		t.Errorf("summary.ProblemsSolved = %d, want 1500", summary.ProblemsSolved)
 	}
-	if summary.Following != 90 {
-		t.Errorf("summary.Following (active days) = %d, want 90", summary.Following)
+	if summary.EasySolved != 500 {
+		t.Errorf("summary.EasySolved = %d, want 500", summary.EasySolved)
 	}
-	if summary.TotalStars != 1337 {
-		t.Errorf("summary.TotalStars (reputation) = %d, want 1337", summary.TotalStars)
+	if summary.MediumSolved != 700 {
+		t.Errorf("summary.MediumSolved = %d, want 700", summary.MediumSolved)
+	}
+	if summary.HardSolved != 300 {
+		t.Errorf("summary.HardSolved = %d, want 300", summary.HardSolved)
+	}
+	if summary.ContestRating != 2450.5 {
+		t.Errorf("summary.ContestRating = %f, want 2450.5", summary.ContestRating)
+	}
+	if summary.GlobalRanking != 120 {
+		t.Errorf("summary.GlobalRanking = %d, want 120", summary.GlobalRanking)
+	}
+	if summary.Reputation != 1337 {
+		t.Errorf("summary.Reputation = %d, want 1337", summary.Reputation)
 	}
 	if len(summary.Grid) != 52 {
 		t.Errorf("summary.Grid weeks = %d, want 52", len(summary.Grid))

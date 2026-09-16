@@ -131,10 +131,15 @@ func ComposeWithState(
 	// Row 3: Empty
 	leftLines[3] = strings.Repeat(" ", layout.GraphWidth)
 
-	// Row 4: Total Contributions (left) + Username (right) in left region
+	// Row 4: Total Contributions / Problems Solved (left) + Username (right) in left region
 	numStr := formatNumber(s.Total)
 	labelStr := "CONTRIBUTIONS"
-	if s.Total == 1 {
+	if s.Source == "leetcode" {
+		labelStr = "PROBLEMS SOLVED"
+		if s.Total == 1 {
+			labelStr = "PROBLEM SOLVED"
+		}
+	} else if s.Total == 1 {
 		labelStr = "CONTRIBUTION"
 	}
 	var totalFormatted string
@@ -279,7 +284,12 @@ func composeStacked(
 	// 3. Total + Username
 	numStr := formatNumber(s.Total)
 	labelStr := "CONTRIBUTIONS"
-	if s.Total == 1 {
+	if s.Source == "leetcode" {
+		labelStr = "PROBLEMS SOLVED"
+		if s.Total == 1 {
+			labelStr = "PROBLEM SOLVED"
+		}
+	} else if s.Total == 1 {
 		labelStr = "CONTRIBUTION"
 	}
 	username := "@" + s.Login

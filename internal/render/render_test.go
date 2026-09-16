@@ -379,3 +379,76 @@ func TestRenderMultiThemes(t *testing.T) {
 	}
 }
 
+func TestRenderLeetCodeSummary(t *testing.T) {
+	summary := &stats.Summary{
+		Source:         "leetcode",
+		Login:          "tourist_lc",
+		Total:          487,
+		ProblemsSolved: 487,
+		EasySolved:     210,
+		MediumSolved:   231,
+		HardSolved:     46,
+		ContestRating:  1842,
+		GlobalRanking:  38421,
+		LongestStreak:  42,
+		DailyAverage:   2.7,
+		BestDayCount:   8,
+		BestDay:        time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC),
+	}
+	layout := CalculateLayout(80, 0)
+	theme := GetTheme(ColorASCII, ThemeDark)
+
+	output := RenderWithTheme(summary, layout, theme)
+
+	if !strings.Contains(output, "@tourist_lc") {
+		t.Errorf("missing username: %q", output)
+	}
+	if !strings.Contains(output, "487 PROBLEMS SOLVED") {
+		t.Errorf("missing PROBLEMS SOLVED: %q", output)
+	}
+	if !strings.Contains(output, "CONTEST RATING") || !strings.Contains(output, "GLOBAL RANK") {
+		t.Errorf("missing contest rating/rank headers: %q", output)
+	}
+	if !strings.Contains(output, "1,842") || !strings.Contains(output, "#38,421") {
+		t.Errorf("missing contest rating/rank values: %q", output)
+	}
+	if !strings.Contains(output, "EASY") || !strings.Contains(output, "MEDIUM") || !strings.Contains(output, "HARD") {
+		t.Errorf("missing difficulty breakdown: %q", output)
+	}
+	if !strings.Contains(output, "210") || !strings.Contains(output, "231") || !strings.Contains(output, "46") {
+		t.Errorf("missing difficulty solved numbers: %q", output)
+	}
+}
+
+func TestRenderLeetCodeStatsPanel(t *testing.T) {
+	summary := &stats.Summary{
+		Source:         "leetcode",
+		Login:          "unranked_user",
+		Total:          100,
+		ProblemsSolved: 100,
+		EasySolved:     50,
+		MediumSolved:   40,
+		HardSolved:     10,
+		GlobalRanking:  105221,
+		Reputation:     230780,
+	}
+	theme := GetTheme(ColorASCII, ThemeDark)
+	rows := RenderStatsPanel(summary, theme)
+
+	var joined strings.Builder
+	for _, r := range rows {
+		joined.WriteString(r.Content + "\n")
+	}
+	content := joined.String()
+
+	if !strings.Contains(content, "GLOBAL RANK") || !strings.Contains(content, "REPUTATION") {
+		t.Errorf("missing unranked headers: %q", content)
+	}
+	if !strings.Contains(content, "#105,221") || !strings.Contains(content, "230,780") {
+		t.Errorf("missing unranked values: %q", content)
+	}
+	if !strings.Contains(content, "EASY") || !strings.Contains(content, "50") {
+		t.Errorf("missing difficulty breakdown: %q", content)
+	}
+}
+

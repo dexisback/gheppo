@@ -35,9 +35,12 @@ func RenderStatsPanelWithWidth(s *stats.Summary, theme Theme, maxWidth int) []St
 		year = s.FetchedAt.Year()
 	}
 	yearProgress := CalculateYearProgress()
-	barWidth := 10
+	barWidth := 16
 	if maxWidth >= 30 {
-		barWidth = 12
+		barWidth = 18
+	}
+	if maxWidth >= 40 {
+		barWidth = 22
 	}
 	progressStr, progressVisLen := RenderYearProgress(year, yearProgress, barWidth, theme)
 	rows = append(rows, StatsRow{
@@ -45,107 +48,97 @@ func RenderStatsPanelWithWidth(s *stats.Summary, theme Theme, maxWidth int) []St
 		VisibleLen: progressVisLen,
 	})
 
-	// === ROW 1: EMPTY ===
+	// === ROWS 1-3: EMPTY GAPS ===
+	rows = append(rows, StatsRow{Content: "", VisibleLen: 0})
+	rows = append(rows, StatsRow{Content: "", VisibleLen: 0})
 	rows = append(rows, StatsRow{Content: "", VisibleLen: 0})
 
-	// === ROW 2: ACTIVITY SECTION HEADING ===
-	rows = append(rows, StatsRow{
-		Content:    theme.Muted + "ACTIVITY" + theme.Reset,
-		VisibleLen: 8,
-	})
-
-	// === ROW 3: TOTAL CONTRIBUTIONS ===
-	totalStr := formatNumber(s.Total)
-	totalLabel := "CONTRIBUTIONS"
-	if s.Total == 1 {
-		totalLabel = "CONTRIBUTION"
-	}
-	rows = append(rows, StatsRow{
-		Content:    theme.Primary + theme.Bold + totalStr + theme.Reset + " " + theme.Secondary + totalLabel + theme.Reset,
-		VisibleLen: len(totalStr) + 1 + len(totalLabel),
-	})
-
-	// === ROW 4: LONGEST STREAK VALUE ===
+	// === ROW 4: LONGEST STREAK (Inline value + label) ===
 	streakStr := formatNumber(s.LongestStreak)
-	streakLabel := "DAYS"
+	streakUnit := "DAYS"
 	if s.LongestStreak == 1 {
-		streakLabel = "DAY"
+		streakUnit = "DAY"
 	}
-	rows = append(rows, StatsRow{
-		Content:    theme.Primary + theme.Bold + streakStr + " " + streakLabel + theme.Reset,
-		VisibleLen: len(streakStr) + 1 + len(streakLabel),
-	})
+	if theme.Mode == ColorASCII {
+		streakLine := fmt.Sprintf("%s %s LONGEST STREAK", streakStr, streakUnit)
+		rows = append(rows, StatsRow{
+			Content:    streakLine,
+			VisibleLen: len(streakLine),
+		})
+	} else {
+		streakLine := fmt.Sprintf("%s%s%s %s%s %sLONGEST STREAK%s",
+			theme.Primary, theme.Bold, streakStr, streakUnit, theme.Reset,
+			theme.Secondary, theme.Reset,
+		)
+		visLen := len(streakStr) + 1 + len(streakUnit) + 1 + len("LONGEST STREAK")
+		rows = append(rows, StatsRow{
+			Content:    streakLine,
+			VisibleLen: visLen,
+		})
+	}
 
-	// === ROW 5: LONGEST STREAK LABEL ===
-	rows = append(rows, StatsRow{
-		Content:    theme.Secondary + "LONGEST STREAK" + theme.Reset,
-		VisibleLen: 14,
-	})
+	// === ROW 5: DAILY AVERAGE (Inline value + label, cohesive activity section) ===
+	avgNum := formatFloat(s.DailyAverage)
+	if theme.Mode == ColorASCII {
+		avgLine := fmt.Sprintf("%s / DAY DAILY AVERAGE", avgNum)
+		rows = append(rows, StatsRow{
+			Content:    avgLine,
+			VisibleLen: len(avgLine),
+		})
+	} else {
+		avgLine := fmt.Sprintf("%s%s%s / DAY%s %sDAILY AVERAGE%s",
+			theme.Primary, theme.Bold, avgNum, theme.Reset,
+			theme.Secondary, theme.Reset,
+		)
+		visLen := len(avgNum) + 6 + 1 + len("DAILY AVERAGE")
+		rows = append(rows, StatsRow{
+			Content:    avgLine,
+			VisibleLen: visLen,
+		})
+	}
 
-	// === ROW 6: BEST DAY VALUE ===
-	var bestContent string
-	var bestVisLen int
+	// === ROW 6: BEST DAY (Inline date + count + label) ===
+	var bestDayLine string
+	var bestDayVisLen int
 	if !s.BestDay.IsZero() && s.BestDayCount > 0 {
 		bestDayStr := strings.ToUpper(s.BestDay.Format("Jan 02"))
 		bestCountStr := formatNumber(s.BestDayCount)
-		bestContent = fmt.Sprintf("%s%s%s%s %s·%s %s%s%s%s",
-			theme.Primary, theme.Bold, bestDayStr, theme.Reset,
-			theme.Secondary, theme.Reset,
-			theme.ActivityHigh, theme.Bold, bestCountStr, theme.Reset,
-		)
-		bestVisLen = len(bestDayStr) + 3 + len(bestCountStr)
+		if theme.Mode == ColorASCII {
+			bestDayLine = fmt.Sprintf("%s . %s BEST DAY", bestDayStr, bestCountStr)
+			bestDayVisLen = len(bestDayStr) + 3 + len(bestCountStr) + 9
+		} else {
+			bestDayLine = fmt.Sprintf("%s%s%s%s %s·%s %s%s%s%s %sBEST DAY%s",
+				theme.Primary, theme.Bold, bestDayStr, theme.Reset,
+				theme.Secondary, theme.Reset,
+				theme.ActivityHigh, theme.Bold, bestCountStr, theme.Reset,
+				theme.Secondary, theme.Reset,
+			)
+			bestDayVisLen = len(bestDayStr) + 3 + len(bestCountStr) + 1 + len("BEST DAY")
+		}
 	} else {
-		bestContent = fmt.Sprintf("%s%s--%s %s·%s %s%s0%s",
-			theme.Primary, theme.Bold, theme.Reset,
-			theme.Secondary, theme.Reset,
-			theme.ActivityHigh, theme.Bold, theme.Reset,
-		)
-		bestVisLen = 6
+		if theme.Mode == ColorASCII {
+			bestDayLine = "-- . 0 BEST DAY"
+			bestDayVisLen = 15
+		} else {
+			bestDayLine = fmt.Sprintf("%s%s--%s %s·%s %s%s0%s %sBEST DAY%s",
+				theme.Primary, theme.Bold, theme.Reset,
+				theme.Secondary, theme.Reset,
+				theme.ActivityHigh, theme.Bold, theme.Reset,
+				theme.Secondary, theme.Reset,
+			)
+			bestDayVisLen = 2 + 3 + 1 + 1 + len("BEST DAY")
+		}
 	}
 	rows = append(rows, StatsRow{
-		Content:    bestContent,
-		VisibleLen: bestVisLen,
+		Content:    bestDayLine,
+		VisibleLen: bestDayVisLen,
 	})
 
-	// === ROW 7: BEST DAY LABEL ===
-	rows = append(rows, StatsRow{
-		Content:    theme.Secondary + "BEST DAY" + theme.Reset,
-		VisibleLen: 8,
-	})
-
-	// === ROW 8: DAILY AVERAGE VALUE ===
-	avgNum := formatFloat(s.DailyAverage)
-	rows = append(rows, StatsRow{
-		Content: fmt.Sprintf("%s%s%s%s %s/ DAY%s",
-			theme.Primary, theme.Bold, avgNum, theme.Reset,
-			theme.Secondary, theme.Reset,
-		),
-		VisibleLen: len(avgNum) + 6,
-	})
-
-	// === ROW 9: DAILY AVERAGE LABEL ===
-	rows = append(rows, StatsRow{
-		Content:    theme.Secondary + "DAILY AVERAGE" + theme.Reset,
-		VisibleLen: 13,
-	})
-
-	// === ROW 10: EMPTY ===
+	// === ROWS 7-8: EMPTY GAPS ===
+	rows = append(rows, StatsRow{Content: "", VisibleLen: 0})
 	rows = append(rows, StatsRow{Content: "", VisibleLen: 0})
 
-	// === ROW 11: PROFILE SECTION HEADING ===
-	rows = append(rows, StatsRow{
-		Content:    theme.Muted + "PROFILE" + theme.Reset,
-		VisibleLen: 7,
-	})
-
-	// === ROW 12: USERNAME ===
-	username := "@" + s.Login
-	rows = append(rows, StatsRow{
-		Content:    theme.Primary + theme.Bold + username + theme.Reset,
-		VisibleLen: len(username),
-	})
-
-	// === ROWS 13-16: PROFILE 2-COLUMN GRID WITH SUB-DIVIDER ===
+	// === ROWS 9-10: FOLLOWERS & FOLLOWING ===
 	followersNum := formatNumber(s.Followers)
 	followingNum := formatNumber(s.Following)
 	reposNum := formatNumber(s.Repos)
@@ -157,78 +150,106 @@ func RenderStatsPanelWithWidth(s *stats.Summary, theme Theme, maxWidth int) []St
 	}
 	col1Width := 13
 
-	// Row 13: Followers & Following labels
-	pad13 := col1Width - len("FOLLOWERS")
+	// Row 9: Followers & Following labels
+	pad9 := col1Width - len("FOLLOWERS")
+	if pad9 < 1 {
+		pad9 = 1
+	}
+	row9 := fmt.Sprintf("%sFOLLOWERS%s%s%s%sFOLLOWING%s",
+		theme.Secondary, theme.Reset,
+		strings.Repeat(" ", pad9),
+		subDivider,
+		theme.Secondary, theme.Reset,
+	)
+	rows = append(rows, StatsRow{
+		Content:    row9,
+		VisibleLen: 9 + pad9 + 2 + 9,
+	})
+
+	// Row 10: Followers & Following numbers
+	pad10 := col1Width - len(followersNum)
+	if pad10 < 1 {
+		pad10 = 1
+	}
+	if theme.Mode == ColorASCII {
+		row10 := fmt.Sprintf("%s%s%s%s",
+			followersNum,
+			strings.Repeat(" ", pad10),
+			subDivider,
+			followingNum,
+		)
+		rows = append(rows, StatsRow{
+			Content:    row10,
+			VisibleLen: len(followersNum) + pad10 + 2 + len(followingNum),
+		})
+	} else {
+		row10 := fmt.Sprintf("%s%s%s%s%s%s%s%s%s%s",
+			theme.Primary, theme.Bold, followersNum, theme.Reset,
+			strings.Repeat(" ", pad10),
+			subDivider,
+			theme.Primary, theme.Bold, followingNum, theme.Reset,
+		)
+		rows = append(rows, StatsRow{
+			Content:    row10,
+			VisibleLen: len(followersNum) + pad10 + 2 + len(followingNum),
+		})
+	}
+
+	// === ROW 11: EMPTY GAP ===
+	rows = append(rows, StatsRow{Content: "", VisibleLen: 0})
+
+	// === ROWS 12-13: REPOSITORIES & TOTAL STARS ===
+	pad12 := col1Width - len("REPOSITORIES")
+	if pad12 < 1 {
+		pad12 = 1
+	}
+	row12 := fmt.Sprintf("%sREPOSITORIES%s%s%s%sTOTAL STARS%s",
+		theme.Secondary, theme.Reset,
+		strings.Repeat(" ", pad12),
+		subDivider,
+		theme.Secondary, theme.Reset,
+	)
+	rows = append(rows, StatsRow{
+		Content:    row12,
+		VisibleLen: 12 + pad12 + 2 + 11,
+	})
+
+	pad13 := col1Width - len(reposNum)
 	if pad13 < 1 {
 		pad13 = 1
 	}
-	row13 := fmt.Sprintf("%sFOLLOWERS%s%s%s%sFOLLOWING%s",
-		theme.Secondary, theme.Reset,
-		strings.Repeat(" ", pad13),
-		subDivider,
-		theme.Secondary, theme.Reset,
-	)
-	rows = append(rows, StatsRow{
-		Content:    row13,
-		VisibleLen: 9 + pad13 + 2 + 9,
-	})
-
-	// Row 14: Followers & Following numbers
-	pad14 := col1Width - len(followersNum)
-	if pad14 < 1 {
-		pad14 = 1
-	}
-	row14 := fmt.Sprintf("%s%s%s%s%s%s%s%s%s%s",
-		theme.Primary, theme.Bold, followersNum, theme.Reset,
-		strings.Repeat(" ", pad14),
-		subDivider,
-		theme.Primary, theme.Bold, followingNum, theme.Reset,
-	)
-	rows = append(rows, StatsRow{
-		Content:    row14,
-		VisibleLen: len(followersNum) + pad14 + 2 + len(followingNum),
-	})
-
-	// Row 15: Repositories & Total Stars labels
-	pad15 := col1Width - len("REPOSITORIES")
-	if pad15 < 1 {
-		pad15 = 1
-	}
-	row15 := fmt.Sprintf("%sREPOSITORIES%s%s%s%sTOTAL STARS%s",
-		theme.Secondary, theme.Reset,
-		strings.Repeat(" ", pad15),
-		subDivider,
-		theme.Secondary, theme.Reset,
-	)
-	rows = append(rows, StatsRow{
-		Content:    row15,
-		VisibleLen: 12 + pad15 + 2 + 11,
-	})
-
-	// Row 16: Repositories & Total Stars numbers
-	pad16 := col1Width - len(reposNum)
-	if pad16 < 1 {
-		pad16 = 1
-	}
-	var starPart string
 	if theme.Mode == ColorASCII {
-		starPart = fmt.Sprintf("* %s", starsNum)
+		starPart := fmt.Sprintf("* %s", starsNum)
+		row13 := fmt.Sprintf("%s%s%s%s",
+			reposNum,
+			strings.Repeat(" ", pad13),
+			subDivider,
+			starPart,
+		)
+		rows = append(rows, StatsRow{
+			Content:    row13,
+			VisibleLen: len(reposNum) + pad13 + 2 + len(starPart),
+		})
 	} else {
-		starPart = fmt.Sprintf("%s★%s %s%s%s%s",
+		starPart := fmt.Sprintf("%s★%s %s%s%s%s",
 			theme.ActivityHigh, theme.Reset,
 			theme.Primary, theme.Bold, starsNum, theme.Reset,
 		)
+		row13 := fmt.Sprintf("%s%s%s%s%s%s%s",
+			theme.Primary, theme.Bold, reposNum, theme.Reset,
+			strings.Repeat(" ", pad13),
+			subDivider,
+			starPart,
+		)
+		rows = append(rows, StatsRow{
+			Content:    row13,
+			VisibleLen: len(reposNum) + pad13 + 2 + 2 + len(starsNum),
+		})
 	}
-	row16 := fmt.Sprintf("%s%s%s%s%s%s%s",
-		theme.Primary, theme.Bold, reposNum, theme.Reset,
-		strings.Repeat(" ", pad16),
-		subDivider,
-		starPart,
-	)
-	rows = append(rows, StatsRow{
-		Content:    row16,
-		VisibleLen: len(reposNum) + pad16 + 2 + 2 + len(starsNum),
-	})
+
+	// === ROWS 14-15: EMPTY GAPS (Safety buffer) ===
+	rows = append(rows, StatsRow{Content: "", VisibleLen: 0})
+	rows = append(rows, StatsRow{Content: "", VisibleLen: 0})
 
 	return rows
 }

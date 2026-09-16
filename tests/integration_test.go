@@ -117,11 +117,14 @@ func TestGheppoFirstRun(t *testing.T) {
 	binary := buildBinary(t)
 	cacheDir := t.TempDir()
 
+	configDir := t.TempDir()
 	cmd := exec.Command(binary)
-	cmd.Env = append(
-		os.Environ(),
-		"XDG_CACHE_HOME="+cacheDir,
-	)
+	cmd.Env = []string{
+		"PATH=" + os.Getenv("PATH"),
+		"HOME=" + t.TempDir(),
+		"XDG_CACHE_HOME=" + cacheDir,
+		"XDG_CONFIG_HOME=" + configDir,
+	}
 
 	output, err := cmd.CombinedOutput()
 

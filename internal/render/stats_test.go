@@ -40,20 +40,20 @@ func TestRenderStatsPanel(t *testing.T) {
 	if !strings.Contains(joined, "LONGEST STREAK") {
 		t.Errorf("stats missing streak label: %s", joined)
 	}
-	if !strings.Contains(joined, "MAY 20 · 30") {
-		t.Errorf("stats missing best day: %s", joined)
-	}
 	if !strings.Contains(joined, "4.2 / DAY") {
 		t.Errorf("stats missing daily average: %s", joined)
 	}
-	if !strings.Contains(joined, "@dexisback") {
-		t.Errorf("stats missing username: %s", joined)
+	if !strings.Contains(joined, "MAY 20") || !strings.Contains(joined, "BEST DAY") {
+		t.Errorf("stats missing best day: %s", joined)
 	}
 	if !strings.Contains(joined, "150") || !strings.Contains(joined, "FOLLOWERS") {
 		t.Errorf("stats missing followers: %s", joined)
 	}
+	if !strings.Contains(joined, "12") || !strings.Contains(joined, "REPOSITORIES") {
+		t.Errorf("stats missing repositories: %s", joined)
+	}
 	if !strings.Contains(joined, "88") || !strings.Contains(joined, "TOTAL STARS") {
-		t.Errorf("stats missing stars: %s", joined)
+		t.Errorf("stats missing total stars: %s", joined)
 	}
 }
 

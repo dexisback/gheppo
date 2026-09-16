@@ -103,8 +103,12 @@ func ComposeWithState(
 		verticalBar = "│"
 	}
 
-	// === 1. BUILD LEFT RECTANGULAR REGION (17 ROWS) ===
-	leftLines := make([]string, 17)
+	// === 1. BUILD LEFT RECTANGULAR REGION (16 ROWS) ===
+	totalRows := len(statsRows)
+	if totalRows < 16 {
+		totalRows = 16
+	}
+	leftLines := make([]string, totalRows)
 
 	// Rows 0..2: Wordmark
 	wordmarkWidth := layout.GraphWidth
@@ -127,7 +131,7 @@ func ComposeWithState(
 	// Row 3: Empty
 	leftLines[3] = strings.Repeat(" ", layout.GraphWidth)
 
-	// Row 4: Total Contributions
+	// Row 4: Total Contributions (left) + Username (right) in left region
 	numStr := formatNumber(s.Total)
 	labelStr := "CONTRIBUTIONS"
 	if s.Total == 1 {
@@ -142,16 +146,34 @@ func ComposeWithState(
 			theme.Secondary, labelStr, theme.Reset,
 		)
 	}
-	padTotal := layout.GraphWidth - (len(numStr) + 1 + len(labelStr))
-	if padTotal < 0 {
-		padTotal = 0
+	totalVisLen := len(numStr) + 1 + len(labelStr)
+
+	username := "@" + s.Login
+	var userFormatted string
+	if theme.Mode == ColorASCII {
+		userFormatted = username
+	} else {
+		userFormatted = fmt.Sprintf("%s%s%s%s", theme.Primary, theme.Bold, username, theme.Reset)
 	}
-	leftLines[4] = totalFormatted + strings.Repeat(" ", padTotal)
+	userVisLen := len(username)
 
-	// Row 5: Empty
-	leftLines[5] = strings.Repeat(" ", layout.GraphWidth)
+	padTotal := layout.GraphWidth - totalVisLen - userVisLen
+	if padTotal < 2 {
+		padTotal = 2
+	}
+	leftRow4 := totalFormatted + strings.Repeat(" ", padTotal) + userFormatted
+	remPad := layout.GraphWidth - (totalVisLen + padTotal + userVisLen)
+	if remPad > 0 {
+		leftRow4 += strings.Repeat(" ", remPad)
+	}
+	leftLines[4] = leftRow4
 
-	// Row 6: Month Header
+	// Rows 5..7: Empty lines for vertical breathing room
+	for r := 5; r <= 7; r++ {
+		leftLines[r] = strings.Repeat(" ", layout.GraphWidth)
+	}
+
+	// Row 8: Month Header
 	if monthHeader != "" {
 		var mhFormatted string
 		if theme.Mode == ColorASCII {
@@ -163,29 +185,26 @@ func ComposeWithState(
 		if padMH < 0 {
 			padMH = 0
 		}
-		leftLines[6] = mhFormatted + strings.Repeat(" ", padMH)
+		leftLines[8] = mhFormatted + strings.Repeat(" ", padMH)
 	} else {
-		leftLines[6] = strings.Repeat(" ", layout.GraphWidth)
+		leftLines[8] = strings.Repeat(" ", layout.GraphWidth)
 	}
 
-	// Rows 7..13: Graph Rows (7 weekday rows)
+	// Rows 9..15: Graph Rows (7 weekday rows, terminating at row 15)
 	for w := 0; w < 7; w++ {
-		if w < len(graphRows) {
-			leftLines[7+w] = graphRows[w]
-		} else {
-			leftLines[7+w] = strings.Repeat(" ", layout.GraphWidth)
+		targetRow := 9 + w
+		if targetRow < totalRows {
+			if w < len(graphRows) {
+				leftLines[targetRow] = graphRows[w]
+			} else {
+				leftLines[targetRow] = strings.Repeat(" ", layout.GraphWidth)
+			}
 		}
 	}
-
-	// Rows 14..16: Empty
-	leftLines[14] = strings.Repeat(" ", layout.GraphWidth)
-	leftLines[15] = strings.Repeat(" ", layout.GraphWidth)
-	leftLines[16] = strings.Repeat(" ", layout.GraphWidth)
 
 	leftRegion := strings.Join(leftLines, "\n")
 
 	// === 3. BUILD RIGHT RECTANGULAR REGION ===
-	totalRows := 17
 	if len(statsRows) > totalRows {
 		totalRows = len(statsRows)
 	}
@@ -225,7 +244,7 @@ func ComposeWithState(
 		joined = strings.Join(lines, "\n")
 	}
 
-	return joined
+	return "\n" + joined
 }
 
 func composeStacked(
@@ -257,16 +276,21 @@ func composeStacked(
 	progressStr, _ := RenderYearProgress(year, CalculateYearProgress(), 8, theme)
 	sections = append(sections, progressStr)
 
-	// 3. Total
+	// 3. Total + Username
 	numStr := formatNumber(s.Total)
 	labelStr := "CONTRIBUTIONS"
 	if s.Total == 1 {
 		labelStr = "CONTRIBUTION"
 	}
+	username := "@" + s.Login
 	if theme.Mode == ColorASCII {
-		sections = append(sections, fmt.Sprintf("%s %s", numStr, labelStr))
+		sections = append(sections, fmt.Sprintf("%s %s   %s", numStr, labelStr, username))
 	} else {
-		sections = append(sections, fmt.Sprintf("%s%s%s%s %s%s%s", theme.Bold, theme.Primary, numStr, theme.Reset, theme.Secondary, labelStr, theme.Reset))
+		sections = append(sections, fmt.Sprintf("%s%s%s%s %s%s%s   %s%s%s%s",
+			theme.Bold, theme.Primary, numStr, theme.Reset,
+			theme.Secondary, labelStr, theme.Reset,
+			theme.Primary, theme.Bold, username, theme.Reset,
+		))
 	}
 
 	// 4. Month header + Graph
@@ -300,5 +324,5 @@ func composeStacked(
 		joined = strings.Join(lines, "\n")
 	}
 
-	return joined
+	return "\n" + joined
 }

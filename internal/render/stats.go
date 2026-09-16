@@ -142,76 +142,89 @@ func RenderStatsPanelWithWidth(s *stats.Summary, theme Theme, maxWidth int) []St
 		VisibleLen: len(username),
 	})
 
-	// === ROWS 13-16: PROFILE 2-COLUMN GRID ===
+	// === ROWS 13-16: PROFILE 2-COLUMN GRID WITH SUB-DIVIDER ===
 	followersNum := formatNumber(s.Followers)
 	followingNum := formatNumber(s.Following)
 	reposNum := formatNumber(s.Repos)
 	starsNum := formatNumber(s.TotalStars)
 
-	col1Width := 16
+	subDivider := theme.Border + "│ " + theme.Reset
+	if theme.Mode == ColorASCII {
+		subDivider = "| "
+	}
+	col1Width := 14
 
-	// Row 13: Followers & Following numbers
-	pad13 := col1Width - len(followersNum)
+	// Row 13: Followers & Following labels
+	pad13 := col1Width - len("FOLLOWERS")
 	if pad13 < 1 {
 		pad13 = 1
 	}
-	row13 := fmt.Sprintf("%s%s%s%s%s%s%s%s%s",
-		theme.Primary, theme.Bold, followersNum, theme.Reset,
+	row13 := fmt.Sprintf("%sFOLLOWERS%s%s%s%sFOLLOWING%s",
+		theme.Secondary, theme.Reset,
 		strings.Repeat(" ", pad13),
-		theme.Primary, theme.Bold, followingNum, theme.Reset,
+		subDivider,
+		theme.Secondary, theme.Reset,
 	)
 	rows = append(rows, StatsRow{
 		Content:    row13,
-		VisibleLen: len(followersNum) + pad13 + len(followingNum),
+		VisibleLen: 9 + pad13 + 2 + 9,
 	})
 
-	// Row 14: Followers & Following labels
-	pad14 := col1Width - len("FOLLOWERS")
+	// Row 14: Followers & Following numbers
+	pad14 := col1Width - len(followersNum)
 	if pad14 < 1 {
 		pad14 = 1
 	}
-	row14 := fmt.Sprintf("%sFOLLOWERS%s%s%sFOLLOWING%s",
-		theme.Secondary, theme.Reset,
+	row14 := fmt.Sprintf("%s%s%s%s%s%s%s%s%s%s",
+		theme.Primary, theme.Bold, followersNum, theme.Reset,
 		strings.Repeat(" ", pad14),
-		theme.Secondary, theme.Reset,
+		subDivider,
+		theme.Primary, theme.Bold, followingNum, theme.Reset,
 	)
 	rows = append(rows, StatsRow{
 		Content:    row14,
-		VisibleLen: 9 + pad14 + 9,
+		VisibleLen: len(followersNum) + pad14 + 2 + len(followingNum),
 	})
 
-	// Row 15: Repositories & Total Stars numbers
-	pad15 := col1Width - len(reposNum)
+	// Row 15: Repositories & Total Stars labels
+	pad15 := col1Width - len("REPOSITORIES")
 	if pad15 < 1 {
 		pad15 = 1
 	}
-	starPart := fmt.Sprintf("%s★%s %s%s%s%s",
-		theme.ActivityHigh, theme.Reset,
-		theme.Primary, theme.Bold, starsNum, theme.Reset,
-	)
-	row15 := fmt.Sprintf("%s%s%s%s%s%s",
-		theme.Primary, theme.Bold, reposNum, theme.Reset,
+	row15 := fmt.Sprintf("%sREPOSITORIES%s%s%s%sTOTAL STARS%s",
+		theme.Secondary, theme.Reset,
 		strings.Repeat(" ", pad15),
-		starPart,
+		subDivider,
+		theme.Secondary, theme.Reset,
 	)
 	rows = append(rows, StatsRow{
 		Content:    row15,
-		VisibleLen: len(reposNum) + pad15 + 2 + len(starsNum),
+		VisibleLen: 12 + pad15 + 2 + 11,
 	})
 
-	// Row 16: Repositories & Total Stars labels
-	pad16 := col1Width - len("REPOSITORIES")
+	// Row 16: Repositories & Total Stars numbers
+	pad16 := col1Width - len(reposNum)
 	if pad16 < 1 {
 		pad16 = 1
 	}
-	row16 := fmt.Sprintf("%sREPOSITORIES%s%s%sTOTAL STARS%s",
-		theme.Secondary, theme.Reset,
+	var starPart string
+	if theme.Mode == ColorASCII {
+		starPart = fmt.Sprintf("* %s", starsNum)
+	} else {
+		starPart = fmt.Sprintf("%s★%s %s%s%s%s",
+			theme.ActivityHigh, theme.Reset,
+			theme.Primary, theme.Bold, starsNum, theme.Reset,
+		)
+	}
+	row16 := fmt.Sprintf("%s%s%s%s%s%s%s",
+		theme.Primary, theme.Bold, reposNum, theme.Reset,
 		strings.Repeat(" ", pad16),
-		theme.Secondary, theme.Reset,
+		subDivider,
+		starPart,
 	)
 	rows = append(rows, StatsRow{
 		Content:    row16,
-		VisibleLen: 12 + pad16 + 11,
+		VisibleLen: len(reposNum) + pad16 + 2 + 2 + len(starsNum),
 	})
 
 	return rows

@@ -184,23 +184,23 @@ func ComposeWithState(
 
 	leftRegion := strings.Join(leftLines, "\n")
 
-	// === 2. BUILD DIVIDER REGION (17 ROWS) ===
+	// === 3. BUILD RIGHT RECTANGULAR REGION ===
+	totalRows := 17
+	if len(statsRows) > totalRows {
+		totalRows = len(statsRows)
+	}
+
+	// === 2. BUILD DIVIDER REGION ===
 	dividerCell := theme.Border + verticalBar + theme.Reset
 	gapDivider := "  " + dividerCell + "  "
 	if layout.DividerWidth <= 3 {
 		gapDivider = " " + dividerCell + " "
 	}
-	dividerLines := make([]string, 17)
-	for i := 0; i < 17; i++ {
+	dividerLines := make([]string, totalRows)
+	for i := 0; i < totalRows; i++ {
 		dividerLines[i] = gapDivider
 	}
 	dividerRegion := strings.Join(dividerLines, "\n")
-
-	// === 3. BUILD RIGHT RECTANGULAR REGION (17 ROWS) ===
-	totalRows := 17
-	if len(statsRows) > totalRows {
-		totalRows = len(statsRows)
-	}
 
 	rightLines := make([]string, totalRows)
 	for i := 0; i < totalRows; i++ {

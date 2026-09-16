@@ -73,14 +73,33 @@ func Summarize(cal *github.ContributionCalendar) *Summary {
 
 	summary.Grid = buildGrid(parsedDays, maxCount)
 
-	summary.CurrentStreak, summary.LongestStreak = calculateStreaks(parsedDays)
-
-	// Calculate best day
-	summary.BestDay, summary.BestDayCount = findBestDay(parsedDays)
-
-	// Calculate daily average
+	// Filter days to the current calendar year (YTD)
+	currentYear := time.Now().Year()
 	if len(parsedDays) > 0 {
-		summary.DailyAverage = float64(summary.Total) / float64(len(parsedDays))
+		currentYear = parsedDays[len(parsedDays)-1].Date.Year()
+	}
+
+	var currentYearDays []parsedDay
+	ytdTotal := 0
+	for _, day := range parsedDays {
+		if day.Date.Year() == currentYear {
+			currentYearDays = append(currentYearDays, day)
+			ytdTotal += day.Count
+		}
+	}
+
+	if len(currentYearDays) > 0 {
+		summary.Total = ytdTotal
+		summary.BestDay, summary.BestDayCount = findBestDay(currentYearDays)
+		summary.DailyAverage = float64(ytdTotal) / float64(len(currentYearDays))
+		summary.CurrentStreak, summary.LongestStreak = calculateStreaks(parsedDays)
+	} else {
+		summary.Total = cal.Total
+		summary.BestDay, summary.BestDayCount = findBestDay(parsedDays)
+		if len(parsedDays) > 0 {
+			summary.DailyAverage = float64(summary.Total) / float64(len(parsedDays))
+		}
+		summary.CurrentStreak, summary.LongestStreak = calculateStreaks(parsedDays)
 	}
 
 	return summary

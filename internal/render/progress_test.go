@@ -31,8 +31,8 @@ func TestRenderYearProgressBar(t *testing.T) {
 
 	themeTC := GetTheme(ColorTrueColor, ThemeDark)
 	barTC := RenderYearProgressBar(50, 10, themeTC)
-	if !strings.Contains(barTC, "█████") || !strings.Contains(barTC, "░░░░░") {
-		t.Errorf("TrueColor 50%% 10-char bar = %q, want 5 filled blocks and 5 empty blocks", barTC)
+	if !strings.Contains(barTC, "▌▌▌▌▌") {
+		t.Errorf("TrueColor 50%% 10-char bar = %q, want 5 filled slats and 5 empty slats", barTC)
 	}
 }
 

@@ -32,7 +32,7 @@ func CalculateYearProgressAt(now time.Time) int {
 	return percentage
 }
 
-// RenderSegmentedProgressBar builds a segmented, terminal-native progress bar matching Image 3.
+// RenderSegmentedProgressBar builds a segmented, terminal-native progress bar matching the reference design.
 func RenderSegmentedProgressBar(percentage, width int, theme Theme) string {
 	if width < 1 {
 		width = 14
@@ -42,11 +42,14 @@ func RenderSegmentedProgressBar(percentage, width int, theme Theme) string {
 	if filled > width {
 		filled = width
 	}
+	if filled < 0 {
+		filled = 0
+	}
 	unfilled := width - filled
 
 	var bar strings.Builder
-	fillChar := "█"
-	emptyChar := "░"
+	fillChar := "▌"
+	emptyChar := "▌"
 
 	if theme.Mode == ColorASCII {
 		fillChar = "#"
@@ -60,14 +63,22 @@ func RenderSegmentedProgressBar(percentage, width int, theme Theme) string {
 		return bar.String()
 	}
 
-	// High contrast segmented presentation matching Image 3
-	bar.WriteString(theme.ActivityHigh)
+	// Crisp white for active segments, dark slate/charcoal for inactive segments
+	activeColor := theme.Bold + "\033[38;2;255;255;255m"
+	if theme.Mode == Color256 {
+		activeColor = "\033[1;38;5;15m"
+	}
+	if theme.Theme == ThemeLight {
+		activeColor = theme.Bold + theme.Primary
+	}
+
+	bar.WriteString(activeColor)
 	for i := 0; i < filled; i++ {
 		bar.WriteString(fillChar)
 	}
 	bar.WriteString(theme.Reset)
 
-	bar.WriteString(theme.EmptyCell)
+	bar.WriteString(theme.Border)
 	for i := 0; i < unfilled; i++ {
 		bar.WriteString(emptyChar)
 	}

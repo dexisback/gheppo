@@ -78,10 +78,10 @@ func DefaultStyles(theme Theme) Styles {
 		Muted:        lipgloss.NewStyle().Foreground(lipgloss.Color("#6E7681")),
 		ActivityHigh: lipgloss.NewStyle().Foreground(lipgloss.Color("#35D06F")).Bold(true),
 		Border:       lipgloss.NewStyle().Foreground(lipgloss.Color("#30363D")),
-		EmptyCell:    lipgloss.NewStyle().Foreground(lipgloss.Color("#21262D")),
-		Level1:       lipgloss.NewStyle().Foreground(lipgloss.Color("#0E6B3B")),
-		Level2:       lipgloss.NewStyle().Foreground(lipgloss.Color("#40C463")),
-		Level3:       lipgloss.NewStyle().Foreground(lipgloss.Color("#35D06F")),
+		EmptyCell:    lipgloss.NewStyle().Foreground(lipgloss.Color("#262C36")),
+		Level1:       lipgloss.NewStyle().Foreground(lipgloss.Color("#0E4C2D")),
+		Level2:       lipgloss.NewStyle().Foreground(lipgloss.Color("#26A641")),
+		Level3:       lipgloss.NewStyle().Foreground(lipgloss.Color("#39D353")),
 		Level4:       lipgloss.NewStyle().Foreground(lipgloss.Color("#7EE787")),
 	}
 }
@@ -174,11 +174,11 @@ var (
 	darkSecondaryText = "\033[38;2;139;148;158m" // #8B949E
 	darkMutedText     = "\033[38;2;110;118;129m" // #6E7681
 
-	darkEmptyCell      = "\033[38;2;33;38;45m"    // #21262D
-	darkActivityLevel1 = "\033[38;2;14;107;59m"   // #0E6B3B
-	darkActivityLevel2 = "\033[38;2;64;196;99m"   // #40C463
-	darkActivityLevel3 = "\033[38;2;53;208;111m"  // #35D06F
-	darkActivityLevel4 = "\033[38;2;126;231;135m" // #7EE787
+	darkEmptyCell      = "\033[38;2;38;44;54m"    // #262C36 (clearly visible inactive slate tile)
+	darkActivityLevel1 = "\033[38;2;14;76;45m"    // #0E4C2D (Level 1: deep forest green)
+	darkActivityLevel2 = "\033[38;2;38;166;65m"   // #26A641 (Level 2: rich emerald green)
+	darkActivityLevel3 = "\033[38;2;57;211;83m"   // #39D353 (Level 3: bright vibrant green)
+	darkActivityLevel4 = "\033[38;2;126;231;135m" // #7EE787 (Level 4: electric mint green)
 
 	// Light Theme - TrueColor
 	lightBorder        = "\033[38;2;208;215;222m" // #D0D7DE
@@ -186,7 +186,7 @@ var (
 	lightSecondaryText = "\033[38;2;101;109;118m" // #656D76
 	lightMutedText     = "\033[38;2;87;96;106m"   // #57606A
 
-	lightEmptyCell      = "\033[38;2;235;237;240m" // #EBEDF0
+	lightEmptyCell      = "\033[38;2;225;229;233m" // #E1E5E9
 	lightActivityLevel1 = "\033[38;2;155;233;168m" // #9BE9A8
 	lightActivityLevel2 = "\033[38;2;64;196;99m"   // #40C463
 	lightActivityLevel3 = "\033[38;2;48;161;78m"   // #30A14E
@@ -202,9 +202,9 @@ var (
 	dark256SecondaryText  = "\033[38;5;246m"
 	dark256MutedText      = "\033[38;5;243m"
 	dark256EmptyCell      = "\033[38;5;236m"
-	dark256ActivityLevel1 = "\033[38;5;28m"
-	dark256ActivityLevel2 = "\033[38;5;35m"
-	dark256ActivityLevel3 = "\033[38;5;48m"
+	dark256ActivityLevel1 = "\033[38;5;22m"
+	dark256ActivityLevel2 = "\033[38;5;28m"
+	dark256ActivityLevel3 = "\033[38;5;40m"
 	dark256ActivityLevel4 = "\033[38;5;120m"
 	dark256ShadowBg       = "\033[48;5;22m"
 

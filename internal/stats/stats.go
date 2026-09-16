@@ -97,6 +97,14 @@ func buildGrid(days []parsedDay, maxCount int) [][]Cell {
 		return nil
 	}
 
+	nonZeroCounts := make([]int, 0, len(days))
+	for _, day := range days {
+		if day.Count > 0 {
+			nonZeroCounts = append(nonZeroCounts, day.Count)
+		}
+	}
+	sort.Ints(nonZeroCounts)
+
 	firstDay := days[0]
 	firstWeekday := int(firstDay.Date.Weekday())
 
@@ -119,7 +127,7 @@ func buildGrid(days []parsedDay, maxCount int) [][]Cell {
 		firstWeek = append(firstWeek, Cell{
 			Date:   day.Date,
 			Count:  day.Count,
-			Bucket: bucket(day.Count, maxCount),
+			Bucket: calculateBucket(day.Count, maxCount, nonZeroCounts),
 		})
 	}
 
@@ -137,7 +145,7 @@ func buildGrid(days []parsedDay, maxCount int) [][]Cell {
 			week = append(week, Cell{
 				Date:   day.Date,
 				Count:  day.Count,
-				Bucket: bucket(day.Count, maxCount),
+				Bucket: calculateBucket(day.Count, maxCount, nonZeroCounts),
 			})
 
 			consumed++
@@ -147,6 +155,34 @@ func buildGrid(days []parsedDay, maxCount int) [][]Cell {
 	}
 
 	return grid
+}
+
+func calculateBucket(count, maxCount int, nonZeroCounts []int) int {
+	if count <= 0 || maxCount <= 0 {
+		return 0
+	}
+	if len(nonZeroCounts) < 4 {
+		return bucket(count, maxCount)
+	}
+
+	q1 := nonZeroCounts[len(nonZeroCounts)/4]
+	q2 := nonZeroCounts[len(nonZeroCounts)/2]
+	q3 := nonZeroCounts[(3*len(nonZeroCounts))/4]
+
+	if q3 <= q1 {
+		return bucket(count, maxCount)
+	}
+
+	if count <= q1 {
+		return 1
+	}
+	if count <= q2 {
+		return 2
+	}
+	if count <= q3 {
+		return 3
+	}
+	return 4
 }
 
 // bucket converts a contribution count into an intensity level:

@@ -127,11 +127,11 @@ var (
 	dark256PrimaryText    = "\033[38;5;231m"
 	dark256SecondaryText  = "\033[38;5;246m"
 	dark256MutedText      = "\033[38;5;243m"
-	dark256EmptyCell      = "\033[38;5;235m"
+	dark256EmptyCell      = "\033[38;5;236m"
 	dark256ActivityLevel1 = "\033[38;5;28m"
-	dark256ActivityLevel2 = "\033[38;5;41m"
+	dark256ActivityLevel2 = "\033[38;5;35m"
 	dark256ActivityLevel3 = "\033[38;5;48m"
-	dark256ActivityLevel4 = "\033[38;5;83m"
+	dark256ActivityLevel4 = "\033[38;5;120m"
 
 	// Light Theme
 	light256Border         = "\033[38;5;252m"

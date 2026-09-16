@@ -170,7 +170,6 @@ func Compose(
 	if monthHeader != "" {
 		coloredMonth := fmt.Sprintf("%s%s%s", theme.Secondary, monthHeader, theme.Reset)
 		addLine(coloredMonth, utf8.RuneCountInString(monthHeader))
-		addEmptyLine()
 	}
 
 	// === TWO-COLUMN LAYOUT: GRAPH | STATS ===

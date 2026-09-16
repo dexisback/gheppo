@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dexisback/gheppo/internal/config"
 	"github.com/dexisback/gheppo/internal/stats"
 )
 
@@ -330,6 +331,51 @@ func TestRenderWithTheme(t *testing.T) {
 	output := RenderWithTheme(summary, layout, theme)
 	if !strings.Contains(output, "@themeuser") {
 		t.Errorf("RenderWithTheme() missing username: %q", output)
+	}
+}
+
+// TestRenderMultiThemes verifies rendering output with all registered themes.
+func TestRenderMultiThemes(t *testing.T) {
+	summary := &stats.Summary{
+		Login:         "dexisback",
+		Total:         542,
+		LongestStreak: 18,
+		DailyAverage:  3.2,
+		Followers:     50,
+		Following:     40,
+		Repos:         15,
+		TotalStars:    99,
+		BestDayCount:  20,
+		BestDay:       time.Date(2026, 6, 2, 0, 0, 0, 0, time.UTC),
+	}
+	layout := CalculateLayout(80, 0)
+
+	for _, themeName := range config.AvailableThemeNames() {
+		cfgTheme, ok := config.GetTheme(themeName)
+		if !ok {
+			t.Fatalf("theme %q not found in registry", themeName)
+		}
+
+		// TrueColor render pass
+		tcTheme := ResolveTheme(cfgTheme, ColorTrueColor)
+		tcOutput := RenderWithTheme(summary, layout, tcTheme)
+
+		if !strings.Contains(tcOutput, "@dexisback") {
+			t.Errorf("theme %q output missing username: %q", themeName, tcOutput)
+		}
+		if !strings.Contains(tcOutput, "542") || !strings.Contains(tcOutput, "CONTRIBUTIONS") {
+			t.Errorf("theme %q output missing contributions: %q", themeName, tcOutput)
+		}
+		if !strings.Contains(tcOutput, tcTheme.ActivityHigh) {
+			t.Errorf("theme %q output missing theme accent color %q", themeName, tcTheme.ActivityHigh)
+		}
+
+		// 256-color render pass
+		c256Theme := ResolveTheme(cfgTheme, Color256)
+		c256Output := RenderWithTheme(summary, layout, c256Theme)
+		if !strings.Contains(c256Output, "@dexisback") {
+			t.Errorf("theme %q 256-color output missing username", themeName)
+		}
 	}
 }
 

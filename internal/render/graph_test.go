@@ -65,25 +65,25 @@ func TestRenderContributionGraphAllBuckets(t *testing.T) {
 		t.Fatalf("expected 7 rows, got %d", len(rows))
 	}
 
-	// Verify bucket 0 uses darkEmptyCell
-	if !strings.Contains(rows[0], darkEmptyCell) {
-		t.Errorf("bucket 0 missing darkEmptyCell: %q", rows[0])
+	// Verify bucket 0 uses theme.EmptyCell
+	if !strings.Contains(rows[0], theme.EmptyCell) {
+		t.Errorf("bucket 0 missing theme.EmptyCell: %q", rows[0])
 	}
-	// Verify bucket 1 uses darkActivityLevel1
-	if !strings.Contains(rows[1], darkActivityLevel1) {
-		t.Errorf("bucket 1 missing darkActivityLevel1: %q", rows[1])
+	// Verify bucket 1 uses theme.ContributionLevel1
+	if !strings.Contains(rows[1], theme.ContributionLevel1) {
+		t.Errorf("bucket 1 missing theme.ContributionLevel1: %q", rows[1])
 	}
-	// Verify bucket 2 uses darkActivityLevel2
-	if !strings.Contains(rows[2], darkActivityLevel2) {
-		t.Errorf("bucket 2 missing darkActivityLevel2: %q", rows[2])
+	// Verify bucket 2 uses theme.ContributionLevel2
+	if !strings.Contains(rows[2], theme.ContributionLevel2) {
+		t.Errorf("bucket 2 missing theme.ContributionLevel2: %q", rows[2])
 	}
-	// Verify bucket 3 uses darkActivityLevel3
-	if !strings.Contains(rows[3], darkActivityLevel3) {
-		t.Errorf("bucket 3 missing darkActivityLevel3: %q", rows[3])
+	// Verify bucket 3 uses theme.ContributionLevel3
+	if !strings.Contains(rows[3], theme.ContributionLevel3) {
+		t.Errorf("bucket 3 missing theme.ContributionLevel3: %q", rows[3])
 	}
-	// Verify bucket 4 uses darkActivityLevel4
-	if !strings.Contains(rows[4], darkActivityLevel4) {
-		t.Errorf("bucket 4 missing darkActivityLevel4: %q", rows[4])
+	// Verify bucket 4 uses theme.ContributionLevel4
+	if !strings.Contains(rows[4], theme.ContributionLevel4) {
+		t.Errorf("bucket 4 missing theme.ContributionLevel4: %q", rows[4])
 	}
 }
 
@@ -106,8 +106,8 @@ func TestRenderContributionGraph256Color(t *testing.T) {
 	}
 
 	for i, r := range rows {
-		if !strings.Contains(r, "\033[38;5;120m") {
-			t.Errorf("row %d = %q, missing 256-color level 4", i, r)
+		if !strings.Contains(r, theme.ContributionLevel4) {
+			t.Errorf("row %d = %q, missing 256-color level 4 %q", i, r, theme.ContributionLevel4)
 		}
 	}
 }

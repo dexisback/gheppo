@@ -63,14 +63,8 @@ func RenderSegmentedProgressBar(percentage, width int, theme Theme) string {
 		return bar.String()
 	}
 
-	// Crisp white for active segments, dark slate/charcoal for inactive segments
-	activeColor := theme.Bold + "\033[38;2;255;255;255m"
-	if theme.Mode == Color256 {
-		activeColor = "\033[1;38;5;15m"
-	}
-	if theme.Theme == ThemeLight {
-		activeColor = theme.Bold + theme.Primary
-	}
+	// Active segments use theme Primary, inactive segments use theme Border
+	activeColor := theme.Bold + theme.Primary
 
 	bar.WriteString(activeColor)
 	for i := 0; i < filled; i++ {

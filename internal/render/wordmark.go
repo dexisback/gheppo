@@ -98,16 +98,16 @@ func BuildWordmarkCanvasWithWidth(maxWidth int) WordmarkCanvas {
 	// Row 2:  ▀▀▀▀ (with shadow)
 	// =========================================================================
 	gOffset := 14
-	add(0, gOffset, "▄", ".", 3, 0.35)
+	add(0, gOffset, "▄", ".", 4, 0.35)
 	for c := 1; c < 5; c++ {
-		add(0, gOffset+c, "▀", "-", 3, 0.37+float64(c-1)*0.02)
+		add(0, gOffset+c, "▀", "-", 4, 0.37+float64(c-1)*0.02)
 	}
-	add(1, gOffset, "█", "#", 3, 0.35)
-	add(1, gOffset+2, "▀", "-", 3, 0.39)
-	add(1, gOffset+3, "▀", "-", 3, 0.41)
-	add(1, gOffset+4, "█", "#", 3, 0.43)
+	add(1, gOffset, "█", "#", 4, 0.35)
+	add(1, gOffset+2, "▀", "-", 4, 0.39)
+	add(1, gOffset+3, "▀", "-", 4, 0.41)
+	add(1, gOffset+4, "█", "#", 4, 0.43)
 	for c := 1; c < 5; c++ {
-		add(2, gOffset+c, "▀", "-", 3, 0.37+float64(c-1)*0.02, true)
+		add(2, gOffset+c, "▀", "-", 4, 0.37+float64(c-1)*0.02, true)
 	}
 
 	// Space at 19
@@ -119,15 +119,15 @@ func BuildWordmarkCanvasWithWidth(maxWidth int) WordmarkCanvas {
 	// Row 2: ▀   ▀ (with shadow)
 	// =========================================================================
 	hOffset := 20
-	add(0, hOffset, "█", "#", 3, 0.48)
-	add(0, hOffset+4, "█", "#", 3, 0.56)
-	add(1, hOffset, "█", "#", 3, 0.48)
+	add(0, hOffset, "█", "#", 4, 0.48)
+	add(0, hOffset+4, "█", "#", 4, 0.56)
+	add(1, hOffset, "█", "#", 4, 0.48)
 	for c := 1; c < 4; c++ {
-		add(1, hOffset+c, "▀", "-", 3, 0.50+float64(c-1)*0.02)
+		add(1, hOffset+c, "▀", "-", 4, 0.50+float64(c-1)*0.02)
 	}
-	add(1, hOffset+4, "█", "#", 3, 0.56)
-	add(2, hOffset, "▀", "-", 3, 0.48, true)
-	add(2, hOffset+4, "▀", "-", 3, 0.56, true)
+	add(1, hOffset+4, "█", "#", 4, 0.56)
+	add(2, hOffset, "▀", "-", 4, 0.48, true)
+	add(2, hOffset+4, "▀", "-", 4, 0.56, true)
 
 	// Space at 25
 
@@ -138,16 +138,16 @@ func BuildWordmarkCanvasWithWidth(maxWidth int) WordmarkCanvas {
 	// Row 2: ▀▀▀▀ (with shadow)
 	// =========================================================================
 	eOffset := 26
-	add(0, eOffset, "█", "#", 3, 0.58)
+	add(0, eOffset, "█", "#", 4, 0.58)
 	for c := 1; c < 4; c++ {
-		add(0, eOffset+c, "▀", "-", 3, 0.60+float64(c-1)*0.02)
+		add(0, eOffset+c, "▀", "-", 4, 0.60+float64(c-1)*0.02)
 	}
-	add(1, eOffset, "█", "#", 3, 0.58)
+	add(1, eOffset, "█", "#", 4, 0.58)
 	for c := 1; c < 4; c++ {
-		add(1, eOffset+c, "▀", "-", 3, 0.60+float64(c-1)*0.02)
+		add(1, eOffset+c, "▀", "-", 4, 0.60+float64(c-1)*0.02)
 	}
 	for c := 0; c < 4; c++ {
-		add(2, eOffset+c, "▀", "-", 3, 0.58+float64(c)*0.02, true)
+		add(2, eOffset+c, "▀", "-", 4, 0.58+float64(c)*0.02, true)
 	}
 
 	// Space at 30
@@ -159,15 +159,15 @@ func BuildWordmarkCanvasWithWidth(maxWidth int) WordmarkCanvas {
 	// Row 2: ▀    (with shadow)
 	// =========================================================================
 	p1Offset := 31
-	add(0, p1Offset, "█", "#", 3, 0.68)
-	add(0, p1Offset+1, "▀", "-", 3, 0.70)
-	add(0, p1Offset+2, "▀", "-", 3, 0.72)
-	add(0, p1Offset+3, "█", "#", 3, 0.74)
-	add(1, p1Offset, "█", "#", 3, 0.68)
+	add(0, p1Offset, "█", "#", 4, 0.68)
+	add(0, p1Offset+1, "▀", "-", 4, 0.70)
+	add(0, p1Offset+2, "▀", "-", 4, 0.72)
+	add(0, p1Offset+3, "█", "#", 4, 0.74)
+	add(1, p1Offset, "█", "#", 4, 0.68)
 	for c := 1; c < 4; c++ {
-		add(1, p1Offset+c, "▀", "-", 3, 0.70+float64(c-1)*0.02)
+		add(1, p1Offset+c, "▀", "-", 4, 0.70+float64(c-1)*0.02)
 	}
-	add(2, p1Offset, "▀", "-", 3, 0.68, true)
+	add(2, p1Offset, "▀", "-", 4, 0.68, true)
 
 	// Space at 35
 
@@ -178,15 +178,15 @@ func BuildWordmarkCanvasWithWidth(maxWidth int) WordmarkCanvas {
 	// Row 2: ▀    (with shadow)
 	// =========================================================================
 	p2Offset := 36
-	add(0, p2Offset, "█", "#", 3, 0.78)
-	add(0, p2Offset+1, "▀", "-", 3, 0.80)
-	add(0, p2Offset+2, "▀", "-", 3, 0.82)
-	add(0, p2Offset+3, "█", "#", 3, 0.84)
-	add(1, p2Offset, "█", "#", 3, 0.78)
+	add(0, p2Offset, "█", "#", 4, 0.78)
+	add(0, p2Offset+1, "▀", "-", 4, 0.80)
+	add(0, p2Offset+2, "▀", "-", 4, 0.82)
+	add(0, p2Offset+3, "█", "#", 4, 0.84)
+	add(1, p2Offset, "█", "#", 4, 0.78)
 	for c := 1; c < 4; c++ {
-		add(1, p2Offset+c, "▀", "-", 3, 0.80+float64(c-1)*0.02)
+		add(1, p2Offset+c, "▀", "-", 4, 0.80+float64(c-1)*0.02)
 	}
-	add(2, p2Offset, "▀", "-", 3, 0.78, true)
+	add(2, p2Offset, "▀", "-", 4, 0.78, true)
 
 	// Space at 40
 
@@ -197,17 +197,17 @@ func BuildWordmarkCanvasWithWidth(maxWidth int) WordmarkCanvas {
 	// Row 2:  ▀▀▀  (with shadow)
 	// =========================================================================
 	oOffset := 41
-	add(0, oOffset, "▄", ".", 3, 0.88)
+	add(0, oOffset, "▄", ".", 4, 0.88)
 	for c := 1; c < 4; c++ {
-		add(0, oOffset+c, "▀", "-", 3, 0.90+float64(c-1)*0.03)
+		add(0, oOffset+c, "▀", "-", 4, 0.90+float64(c-1)*0.03)
 	}
-	add(0, oOffset+4, "▄", ".", 3, 1.00)
+	add(0, oOffset+4, "▄", ".", 4, 1.00)
 
-	add(1, oOffset, "█", "#", 3, 0.88)
-	add(1, oOffset+4, "█", "#", 3, 1.00)
+	add(1, oOffset, "█", "#", 4, 0.88)
+	add(1, oOffset+4, "█", "#", 4, 1.00)
 
 	for c := 1; c < 4; c++ {
-		add(2, oOffset+c, "▀", "-", 3, 0.90+float64(c-1)*0.03, true)
+		add(2, oOffset+c, "▀", "-", 4, 0.90+float64(c-1)*0.03, true)
 	}
 
 	finalWidth := defaultWordmarkWidth - shift

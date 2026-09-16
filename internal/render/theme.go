@@ -3,9 +3,11 @@ package render
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/dexisback/gheppo/internal/config"
 )
 
 // ColorMode specifies the terminal color capability level.
@@ -17,7 +19,7 @@ const (
 	ColorASCII
 )
 
-// ThemeMode specifies the terminal theme (dark or light background).
+// ThemeMode specifies the terminal theme mode (retained for backward compatibility).
 type ThemeMode int
 
 const (
@@ -56,45 +58,47 @@ func DefaultStyles(theme Theme) Styles {
 		}
 	}
 
-	if theme.Theme == ThemeLight {
-		return Styles{
-			Primary:      lipgloss.NewStyle().Foreground(lipgloss.Color("#1F2328")).Bold(true),
-			Secondary:    lipgloss.NewStyle().Foreground(lipgloss.Color("#656D76")),
-			Muted:        lipgloss.NewStyle().Foreground(lipgloss.Color("#57606A")),
-			ActivityHigh: lipgloss.NewStyle().Foreground(lipgloss.Color("#30A14E")).Bold(true),
-			Border:       lipgloss.NewStyle().Foreground(lipgloss.Color("#D0D7DE")),
-			EmptyCell:    lipgloss.NewStyle().Foreground(lipgloss.Color("#EBEDF0")),
-			Level1:       lipgloss.NewStyle().Foreground(lipgloss.Color("#9BE9A8")),
-			Level2:       lipgloss.NewStyle().Foreground(lipgloss.Color("#40C463")),
-			Level3:       lipgloss.NewStyle().Foreground(lipgloss.Color("#30A14E")),
-			Level4:       lipgloss.NewStyle().Foreground(lipgloss.Color("#216E39")),
-		}
+	fg := theme.Config.Foreground
+	if fg == "" {
+		fg = "#F0F6FC"
+	}
+	muted := theme.Config.Muted
+	if muted == "" {
+		muted = "#8B949E"
+	}
+	accent := theme.Config.Accent
+	if accent == "" {
+		accent = theme.Config.GraphLevels[4]
+	}
+	border := theme.Config.Border
+	if border == "" {
+		border = "#30363D"
 	}
 
-	// Dark Theme (default)
 	return Styles{
-		Primary:      lipgloss.NewStyle().Foreground(lipgloss.Color("#F0F6FC")).Bold(true),
-		Secondary:    lipgloss.NewStyle().Foreground(lipgloss.Color("#8B949E")),
-		Muted:        lipgloss.NewStyle().Foreground(lipgloss.Color("#6E7681")),
-		ActivityHigh: lipgloss.NewStyle().Foreground(lipgloss.Color("#56EA8E")).Bold(true),
-		Border:       lipgloss.NewStyle().Foreground(lipgloss.Color("#30363D")),
-		EmptyCell:    lipgloss.NewStyle().Foreground(lipgloss.Color("#1B2330")),
-		Level1:       lipgloss.NewStyle().Foreground(lipgloss.Color("#124E34")),
-		Level2:       lipgloss.NewStyle().Foreground(lipgloss.Color("#24824C")),
-		Level3:       lipgloss.NewStyle().Foreground(lipgloss.Color("#34C759")),
-		Level4:       lipgloss.NewStyle().Foreground(lipgloss.Color("#56EA8E")),
+		Primary:      lipgloss.NewStyle().Foreground(lipgloss.Color(fg)).Bold(true),
+		Secondary:    lipgloss.NewStyle().Foreground(lipgloss.Color(muted)),
+		Muted:        lipgloss.NewStyle().Foreground(lipgloss.Color(muted)),
+		ActivityHigh: lipgloss.NewStyle().Foreground(lipgloss.Color(accent)).Bold(true),
+		Border:       lipgloss.NewStyle().Foreground(lipgloss.Color(border)),
+		EmptyCell:    lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Config.GraphLevels[0])),
+		Level1:       lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Config.GraphLevels[1])),
+		Level2:       lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Config.GraphLevels[2])),
+		Level3:       lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Config.GraphLevels[3])),
+		Level4:       lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Config.GraphLevels[4])),
 	}
 }
 
-// Theme encapsulates all UI color tokens and contribution cell styles.
+// Theme encapsulates resolved ANSI color tokens and contribution cell styles derived from config.Theme.
 type Theme struct {
+	Config       config.Theme
 	Mode         ColorMode
 	Theme        ThemeMode
 	Border       string
 	Primary      string
 	Secondary    string
 	Muted        string
-	ActivityHigh string // For year progress and green accent numbers
+	ActivityHigh string // Accent color for high-visibility highlights
 	Reset        string
 	Bold         string
 
@@ -116,6 +120,96 @@ func (t Theme) Styles() Styles {
 
 // PaletteTokens is an alias for Theme to maintain backwards compatibility.
 type PaletteTokens = Theme
+
+const (
+	resetAnsi = "\033[0m"
+	boldAnsi  = "\033[1m"
+)
+
+// ASCII intensity glyphs (NO_COLOR)
+var asciiGlyphs = map[int]string{
+	0: "·",
+	1: "░",
+	2: "▒",
+	3: "▓",
+	4: "█",
+}
+
+// Pure ASCII fallback
+var pureAsciiGlyphs = map[int]string{
+	0: ".",
+	1: "-",
+	2: "=",
+	3: "+",
+	4: "#",
+}
+
+// ResolveTheme maps a config.Theme and ColorMode into a resolved presentation Theme.
+func ResolveTheme(cfgTheme config.Theme, mode ColorMode) Theme {
+	// If empty theme config was provided, fallback to default
+	if cfgTheme.Name == "" {
+		cfgTheme = config.DefaultTheme()
+	}
+
+	if mode == ColorASCII {
+		return Theme{
+			Config: cfgTheme,
+			Mode:   ColorASCII,
+			Reset:  "",
+			Bold:   "",
+		}
+	}
+
+	if mode == Color256 {
+		return Theme{
+			Config:             cfgTheme,
+			Mode:               Color256,
+			Border:             hexTo256ColorFg(cfgTheme.Border),
+			Primary:            hexTo256ColorFg(cfgTheme.Foreground),
+			Secondary:          hexTo256ColorFg(cfgTheme.Muted),
+			Muted:              hexTo256ColorFg(cfgTheme.Muted),
+			ActivityHigh:       hexTo256ColorFg(cfgTheme.Accent),
+			Reset:              resetAnsi,
+			Bold:               boldAnsi,
+			EmptyCell:          hexTo256ColorFg(cfgTheme.GraphLevels[0]),
+			ContributionLevel1: hexTo256ColorFg(cfgTheme.GraphLevels[1]),
+			ContributionLevel2: hexTo256ColorFg(cfgTheme.GraphLevels[2]),
+			ContributionLevel3: hexTo256ColorFg(cfgTheme.GraphLevels[3]),
+			ContributionLevel4: hexTo256ColorFg(cfgTheme.GraphLevels[4]),
+			ShadowBg:           hexTo256ColorBg(cfgTheme.GraphLevels[1]),
+		}
+	}
+
+	// ColorTrueColor (default)
+	return Theme{
+		Config:             cfgTheme,
+		Mode:               ColorTrueColor,
+		Border:             hexToTrueColorFg(cfgTheme.Border),
+		Primary:            hexToTrueColorFg(cfgTheme.Foreground),
+		Secondary:          hexToTrueColorFg(cfgTheme.Muted),
+		Muted:              hexToTrueColorFg(cfgTheme.Muted),
+		ActivityHigh:       hexToTrueColorFg(cfgTheme.Accent),
+		Reset:              resetAnsi,
+		Bold:               boldAnsi,
+		EmptyCell:          hexToTrueColorFg(cfgTheme.GraphLevels[0]),
+		ContributionLevel1: hexToTrueColorFg(cfgTheme.GraphLevels[1]),
+		ContributionLevel2: hexToTrueColorFg(cfgTheme.GraphLevels[2]),
+		ContributionLevel3: hexToTrueColorFg(cfgTheme.GraphLevels[3]),
+		ContributionLevel4: hexToTrueColorFg(cfgTheme.GraphLevels[4]),
+		ShadowBg:           hexToTrueColorBg(cfgTheme.GraphLevels[1]),
+	}
+}
+
+// GetTheme returns the resolved Theme for the active configuration and given color mode.
+func GetTheme(mode ColorMode, _ ...ThemeMode) Theme {
+	cfgTheme := config.GetSelectedTheme()
+	return ResolveTheme(cfgTheme, mode)
+}
+
+// GetTokens returns ANSI styling tokens for the active mode and theme.
+func GetTokens(mode ColorMode, theme ThemeMode) Theme {
+	return GetTheme(mode, theme)
+}
 
 // DetectColorMode determines what level of terminal color support is available.
 func DetectColorMode() ColorMode {
@@ -165,182 +259,6 @@ func DetectTheme() ThemeMode {
 	return ThemeDark
 }
 
-// Design-specified color palettes
-// Dark Theme: TrueColor exact values from design spec
-var (
-	// Dark Theme - TrueColor
-	darkBorder        = "\033[38;2;48;54;61m"    // #30363D
-	darkPrimaryText   = "\033[38;2;240;246;252m" // #F0F6FC
-	darkSecondaryText = "\033[38;2;139;148;158m" // #8B949E
-	darkMutedText     = "\033[38;2;110;118;129m" // #6E7681
-
-	darkEmptyCell      = "\033[38;2;27;35;48m"    // #1B2330 (deep subtle blue-slate track tile)
-	darkActivityLevel1 = "\033[38;2;18;78;52m"    // #124E34 (Level 1: deep rich forest green)
-	darkActivityLevel2 = "\033[38;2;36;130;76m"   // #24824C (Level 2: rich emerald green)
-	darkActivityLevel3 = "\033[38;2;52;199;89m"   // #34C759 (Level 3: vibrant green)
-	darkActivityLevel4 = "\033[38;2;86;234;142m"  // #56EA8E (Level 4: electric luminous mint green)
-
-	// Light Theme - TrueColor
-	lightBorder        = "\033[38;2;208;215;222m" // #D0D7DE
-	lightPrimaryText   = "\033[38;2;31;35;40m"    // #1F2328
-	lightSecondaryText = "\033[38;2;101;109;118m" // #656D76
-	lightMutedText     = "\033[38;2;87;96;106m"   // #57606A
-
-	lightEmptyCell      = "\033[38;2;225;229;233m" // #E1E5E9
-	lightActivityLevel1 = "\033[38;2;155;233;168m" // #9BE9A8
-	lightActivityLevel2 = "\033[38;2;64;196;99m"   // #40C463
-	lightActivityLevel3 = "\033[38;2;48;161;78m"   // #30A14E
-	lightActivityLevel4 = "\033[38;2;33;110;57m"   // #216E39
-
-	darkShadowBg   = "\033[48;2;14;65;35m"    // #0E4123
-	lightShadowBg  = "\033[48;2;208;215;222m" // #D0D7DE
-
-	// 256-color approximations
-	// Dark Theme
-	dark256Border         = "\033[38;5;237m"
-	dark256PrimaryText    = "\033[38;5;231m"
-	dark256SecondaryText  = "\033[38;5;246m"
-	dark256MutedText      = "\033[38;5;243m"
-	dark256EmptyCell      = "\033[38;5;236m"
-	dark256ActivityLevel1 = "\033[38;5;22m"
-	dark256ActivityLevel2 = "\033[38;5;28m"
-	dark256ActivityLevel3 = "\033[38;5;40m"
-	dark256ActivityLevel4 = "\033[38;5;120m"
-	dark256ShadowBg       = "\033[48;5;22m"
-
-	// Light Theme
-	light256Border         = "\033[38;5;252m"
-	light256PrimaryText    = "\033[38;5;235m"
-	light256SecondaryText  = "\033[38;5;241m"
-	light256MutedText      = "\033[38;5;243m"
-	light256EmptyCell      = "\033[38;5;254m"
-	light256ActivityLevel1 = "\033[38;5;157m"
-	light256ActivityLevel2 = "\033[38;5;77m"
-	light256ActivityLevel3 = "\033[38;5;71m"
-	light256ActivityLevel4 = "\033[38;5;29m"
-	light256ShadowBg       = "\033[48;5;252m"
-
-	reset = "\033[0m"
-	bold  = "\033[1m"
-)
-
-// ASCII intensity glyphs (NO_COLOR)
-var asciiGlyphs = map[int]string{
-	0: "·",
-	1: "░",
-	2: "▒",
-	3: "▓",
-	4: "█",
-}
-
-// Pure ASCII fallback (when unicode might not work)
-var pureAsciiGlyphs = map[int]string{
-	0: ".",
-	1: "-",
-	2: "=",
-	3: "+",
-	4: "#",
-}
-
-// GetTheme returns the complete theme tokens for the given mode and theme.
-func GetTheme(mode ColorMode, theme ThemeMode) Theme {
-	if mode == ColorASCII {
-		return Theme{
-			Mode:     ColorASCII,
-			Theme:    theme,
-			Reset:    "",
-			Bold:     "",
-			ShadowBg: "",
-		}
-	}
-
-	if theme == ThemeDark {
-		if mode == Color256 {
-			return Theme{
-				Mode:               Color256,
-				Theme:              ThemeDark,
-				Border:             dark256Border,
-				Primary:            dark256PrimaryText,
-				Secondary:          dark256SecondaryText,
-				Muted:              dark256MutedText,
-				ActivityHigh:       dark256ActivityLevel3,
-				Reset:              reset,
-				Bold:               bold,
-				EmptyCell:          dark256EmptyCell,
-				ContributionLevel1: dark256ActivityLevel1,
-				ContributionLevel2: dark256ActivityLevel2,
-				ContributionLevel3: dark256ActivityLevel3,
-				ContributionLevel4: dark256ActivityLevel4,
-				ShadowBg:           dark256ShadowBg,
-			}
-		}
-		// TrueColor Dark
-		return Theme{
-			Mode:               ColorTrueColor,
-			Theme:              ThemeDark,
-			Border:             darkBorder,
-			Primary:            darkPrimaryText,
-			Secondary:          darkSecondaryText,
-			Muted:              darkMutedText,
-			ActivityHigh:       darkActivityLevel4,
-			Reset:              reset,
-			Bold:               bold,
-			EmptyCell:          darkEmptyCell,
-			ContributionLevel1: darkActivityLevel1,
-			ContributionLevel2: darkActivityLevel2,
-			ContributionLevel3: darkActivityLevel3,
-			ContributionLevel4: darkActivityLevel4,
-			ShadowBg:           darkShadowBg,
-		}
-	}
-
-	// Light Theme
-	if mode == Color256 {
-		return Theme{
-			Mode:               Color256,
-			Theme:              ThemeLight,
-			Border:             light256Border,
-			Primary:            light256PrimaryText,
-			Secondary:          light256SecondaryText,
-			Muted:              light256MutedText,
-			ActivityHigh:       light256ActivityLevel3,
-			Reset:              reset,
-			Bold:               bold,
-			EmptyCell:          light256EmptyCell,
-			ContributionLevel1: light256ActivityLevel1,
-			ContributionLevel2: light256ActivityLevel2,
-			ContributionLevel3: light256ActivityLevel3,
-			ContributionLevel4: light256ActivityLevel4,
-			ShadowBg:           light256ShadowBg,
-		}
-	}
-
-	// TrueColor Light
-	return Theme{
-		Mode:               ColorTrueColor,
-		Theme:              ThemeLight,
-		Border:             lightBorder,
-		Primary:            lightPrimaryText,
-		Secondary:          lightSecondaryText,
-		Muted:              lightMutedText,
-		ActivityHigh:       lightActivityLevel3,
-		Reset:              reset,
-		Bold:               bold,
-		EmptyCell:          lightEmptyCell,
-		ContributionLevel1: lightActivityLevel1,
-		ContributionLevel2: lightActivityLevel2,
-		ContributionLevel3: lightActivityLevel3,
-		ContributionLevel4: lightActivityLevel4,
-		ShadowBg:           lightShadowBg,
-	}
-}
-
-// GetTokens returns ANSI styling tokens for the active mode and theme.
-// Retained for backward compatibility.
-func GetTokens(mode ColorMode, theme ThemeMode) Theme {
-	return GetTheme(mode, theme)
-}
-
 // CellColor returns the formatted cell glyph for the given mode, theme, and bucket.
 func CellColor(mode ColorMode, theme ThemeMode, bucket int) string {
 	t := GetTheme(mode, theme)
@@ -380,6 +298,71 @@ func (t Theme) CellColor(bucket int) string {
 	}
 
 	return color + block + t.Reset
+}
+
+func parseHexColor(hex string) (r, g, b uint8, ok bool) {
+	hex = strings.TrimPrefix(hex, "#")
+	if len(hex) == 3 {
+		hex = string([]byte{hex[0], hex[0], hex[1], hex[1], hex[2], hex[2]})
+	}
+	if len(hex) != 6 {
+		return 0, 0, 0, false
+	}
+	val, err := strconv.ParseUint(hex, 16, 32)
+	if err != nil {
+		return 0, 0, 0, false
+	}
+	return uint8(val >> 16), uint8((val >> 8) & 0xFF), uint8(val & 0xFF), true
+}
+
+func hexToTrueColorFg(hex string) string {
+	r, g, b, ok := parseHexColor(hex)
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("\033[38;2;%d;%d;%dm", r, g, b)
+}
+
+func hexToTrueColorBg(hex string) string {
+	r, g, b, ok := parseHexColor(hex)
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("\033[48;2;%d;%d;%dm", r, g, b)
+}
+
+func rgbTo256Index(r, g, b uint8) int {
+	if r == g && g == b {
+		if r < 8 {
+			return 16
+		}
+		if r > 248 {
+			return 231
+		}
+		return 232 + int((float64(r)-8)/247*24)
+	}
+	r6 := int(r) * 5 / 255
+	g6 := int(g) * 5 / 255
+	b6 := int(b) * 5 / 255
+	return 16 + 36*r6 + 6*g6 + b6
+}
+
+func hexTo256ColorFg(hex string) string {
+	r, g, b, ok := parseHexColor(hex)
+	if !ok {
+		return ""
+	}
+	idx := rgbTo256Index(r, g, b)
+	return fmt.Sprintf("\033[38;5;%dm", idx)
+}
+
+func hexTo256ColorBg(hex string) string {
+	r, g, b, ok := parseHexColor(hex)
+	if !ok {
+		return ""
+	}
+	idx := rgbTo256Index(r, g, b)
+	return fmt.Sprintf("\033[48;5;%dm", idx)
 }
 
 func formatNumber(n int) string {

@@ -66,9 +66,9 @@ func RenderStatsPanelWithWidth(s *stats.Summary, theme Theme, maxWidth int) []St
 			VisibleLen: len(streakLine),
 		})
 	} else {
-		streakLine := fmt.Sprintf("%s%s%s %s%s %sLONGEST STREAK%s",
-			theme.Primary, theme.Bold, streakStr, streakUnit, theme.Reset,
-			theme.Secondary, theme.Reset,
+		streakLine := fmt.Sprintf("%s%s%s%s %s%s LONGEST STREAK%s",
+			theme.Bold, theme.Primary, streakStr, theme.Reset,
+			theme.Secondary, streakUnit, theme.Reset,
 		)
 		visLen := len(streakStr) + 1 + len(streakUnit) + 1 + len("LONGEST STREAK")
 		rows = append(rows, StatsRow{
@@ -86,11 +86,11 @@ func RenderStatsPanelWithWidth(s *stats.Summary, theme Theme, maxWidth int) []St
 			VisibleLen: len(avgLine),
 		})
 	} else {
-		avgLine := fmt.Sprintf("%s%s%s / DAY%s %sDAILY AVERAGE%s",
-			theme.Primary, theme.Bold, avgNum, theme.Reset,
+		avgLine := fmt.Sprintf("%s%s%s%s %s/ DAY DAILY AVERAGE%s",
+			theme.Bold, theme.Primary, avgNum, theme.Reset,
 			theme.Secondary, theme.Reset,
 		)
-		visLen := len(avgNum) + 6 + 1 + len("DAILY AVERAGE")
+		visLen := len(avgNum) + 1 + len("/ DAY DAILY AVERAGE")
 		rows = append(rows, StatsRow{
 			Content:    avgLine,
 			VisibleLen: visLen,

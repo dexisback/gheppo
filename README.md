@@ -1,173 +1,224 @@
 # Gheppo
 
-> Your GitHub contribution graph, every time you open a terminal.
+> Your GitHub & LeetCode contribution graphs, every time you open a terminal.
 
-**Go 1.26.5+** · **[MIT License](LICENSE)**
+[![Go Version](https://img.shields.io/github/go-mod/go-version/dexisback/gheppo)](https://golang.org)
+[![Release](https://img.shields.io/github/v/release/dexisback/gheppo)](https://github.com/dexisback/gheppo/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Gheppo brings your GitHub contribution graph and activity statistics into your terminal. It renders cached data locally, then refreshes stale data in a detached process for a later invocation. Normal cached rendering does not wait for GitHub API requests.
+Gheppo brings your contribution graphs, streaks, and activity statistics straight into your terminal whenever a new shell session opens. It renders instantly using a local cache, then asynchronously refreshes stale data in the background without blocking your shell prompt.
 
 ---
 
 ## Highlights
 
-- **Cache-first startup**: normal renders read only a local cache — no network wait at startup.
-- **Background refresh**: a cross-process file lock gates detached refreshes when the cache is older than six hours. Cache updates use a temporary file and rename.
-- **Keychain authentication**: `gheppo auth login` saves credentials in macOS Keychain, Linux Secret Service, or Windows Credential Manager via `go-keyring`.
-- **Themes**: built-in `github` (default), `mono`, `catppuccin`, `nord`, `gruvbox`; switch with `gheppo theme`. Persisted to `config.json`, overridable via `GHEPPO_THEME`.
-- **Responsive, animated rendering**: Bubble Tea + Lip Gloss TUI with progressive reveal; graceful degradation from 140+ columns down to 46, with a static fallback for non-TTY, `NO_COLOR`, `CI`, and dumb terminals.
-- **Adaptive color modes**: automatic negotiation across TrueColor (24-bit), 256-color ANSI, and `NO_COLOR`-compliant ASCII.
-- **Shell-safe integration**: Zsh (Powerlevel10k instant-prompt safe via a self-unregistering `line-init` widget) and Bash (`PROMPT_COMMAND` preservation).
+- ⚡ **Instant, Cache-First Startup**: Renders from a local cache in sub-5ms—no waiting on remote network calls when opening a terminal.
+- 🔄 **Non-Blocking Background Refresh**: Automatically spawns a detached background sync when the cache is older than 6 hours, guarded by cross-process file locking.
+- 🐙 **GitHub & 💡 LeetCode Sources**: Switch seamlessly between GitHub (contributions, stars, repos, followers) and LeetCode (problems solved by difficulty, contest ranking, streaks).
+- 🎨 **5 Polished Themes**: Built-in `github` (default), `mono`, `catppuccin`, `nord`, and `gruvbox` palettes with balanced contrast for empty and active cells.
+- 🔒 **Secure Keychain Storage**: Tokens and credentials are encrypted in your OS keychain (macOS Keychain, Linux Secret Service, Windows Credential Manager).
+- 🛡️ **Security-Hardened**: Strict ANSI/control code sanitization on remote data, bounded HTTP streams, atomic file writes, and SHA-256 verified releases.
+- 🐚 **Shell-Safe Integration**: Supports Zsh (Powerlevel10k instant-prompt safe via a self-unregistering `line-init` hook) and Bash (safe `PROMPT_COMMAND` chaining).
+- 📐 **Responsive Terminal Layout**: Dynamic scaling from 140+ columns down to 46 columns, with automatic TrueColor, 256-color, and `NO_COLOR` fallbacks.
 
 ---
 
-## Architecture at a Glance
+## Installation Guide
 
-The GitHub path separates local rendering from network refresh:
+### Quick Install (macOS & Linux)
 
-```mermaid
-flowchart TD
-    CLI["Shell hook or gheppo"] --> Cache{"Usable cache?"}
-    Cache -- No --> Setup["Show authentication or sync instructions"]
-    Cache -- Yes --> Render["Render cached card"]
-    Render --> Gate{"Older than 6h and lock acquired?"}
-    Gate -- No --> Exit["Return to shell"]
-    Gate -- Yes --> Spawn["Spawn detached gheppo sync"]
-    Spawn --> Exit
-    Spawn -. Background .-> Fetch["Load credentials → GitHub GraphQL"]
-    Fetch --> Save["Summarize → atomic cache replacement"]
-    Save -. "Next invocation" .-> Cache
+Install the latest release with a single command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dexisback/gheppo/main/scripts/install.sh | sh
 ```
 
-The refresh lock is passed to the child process, which releases it on success or failure. If spawning fails, the parent releases it. Failed refreshes leave the previous cache available and do not fail the normal render command. Manual `gheppo sync` runs in the foreground.
+*Or using `wget`:*
 
-Interactive rendering includes a reveal animation before the refresh check; cache-first does not imply a guaranteed sub-5 ms invocation. Set `GHEPPO_NO_ANIMATION=1` for static output.
+```bash
+wget -qO- https://raw.githubusercontent.com/dexisback/gheppo/main/scripts/install.sh | sh
+```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for engineering background. [PROJECT.md](PROJECT.md) records the original project goals and handover; some implementation notes predate the current CLI and theme support.
+The installer will:
+1. Detect your OS (`Linux`, `Darwin/macOS`) and architecture (`x86_64/amd64`, `arm64`).
+2. Download the official release archive and verify its SHA-256 checksum.
+3. Install the `gheppo` binary into `~/.local/bin` (or `$GHEPPO_INSTALL_DIR`).
+4. Automatically append the idempotent shell integration hook to your `~/.zshrc` or `~/.bashrc`.
+
+---
+
+### Platform-Specific Instructions
+
+#### 🍎 macOS (Apple Silicon & Intel)
+The quick installer automatically selects the correct universal binary (`darwin_arm64` or `darwin_amd64`) and uses macOS Keychain for credential storage.
+
+Ensure `~/.local/bin` is in your `$PATH` (in `~/.zshrc` or `~/.bashrc`):
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+#### 🐧 Linux (Ubuntu, Debian, Fedora, Arch, etc.)
+The installer supports `linux_amd64` and `linux_arm64`.
+
+> **Note on Keyring:** Gheppo stores authentication credentials via the standard Linux Secret Service API (e.g. GNOME Keyring, KWallet, KeePassXC). If running in a headless or minimal environment without a Secret Service daemon, you can export `GITHUB_TOKEN` in your shell environment.
+
+#### 🪟 Windows
+- **WSL / Git Bash / MSYS2**: Run the quick install `curl` command inside your Linux or Bash environment.
+- **Manual Binary Install (PowerShell / Command Prompt)**:
+  1. Download the latest `gheppo_<version>_windows_amd64.zip` from [GitHub Releases](https://github.com/dexisback/gheppo/releases).
+  2. Extract `gheppo.exe` to a folder in your `%PATH%` (e.g. `C:\Program Files\gheppo\` or `C:\Users\<User>\bin`).
+  3. Credentials will be securely stored in Windows Credential Manager.
+
+#### 🛠️ Custom Install Options
+You can customize the version or destination directory via environment variables:
+
+```bash
+GHEPPO_VERSION=v0.1.0 GHEPPO_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/dexisback/gheppo/main/scripts/install.sh | sh
+```
+
+#### 🔨 Build from Source (Requires Go 1.26+)
+```bash
+git clone https://github.com/dexisback/gheppo.git
+cd gheppo
+go build -o ~/.local/bin/gheppo .
+```
 
 ---
 
 ## Quickstart
 
-### 1. Installation
+### 1. Authenticate
 
-Clone and run the automated installer:
-
-```bash
-git clone https://github.com/dexisback/gheppo.git
-cd gheppo
-./scripts/install.sh
-```
-
-The installer builds the binary to `~/.local/bin/gheppo` and appends an idempotent, delimiter-marked shell integration block to your `.zshrc` or `.bashrc`. Ensure `~/.local/bin` is on your `$PATH`.
-
-### 2. Authentication
-
-Authenticate with a GitHub Personal Access Token that can read your profile and contribution data. For a classic token, use the `read:user` scope; fine-grained tokens use a different permission model.
+Run the interactive login command:
 
 ```bash
 gheppo auth login
 ```
 
-The token is entered with terminal echo disabled, verified against the GitHub API, and stored in your OS keychain. When no keychain entry exists, the client also checks `GITHUB_TOKEN`, `GH_TOKEN`, and `GITHUB_MCP_TOKEN`; resolving an account from these variables requires a network request.
+Choose your primary data source:
+- **GitHub**: Paste a GitHub Personal Access Token (classic token with `read:user` scope, or fine-grained). Input is masked in the terminal.
+- **LeetCode**: Enter your LeetCode username (public profiles require no token).
 
-### 3. Initial Sync
+### 2. Initial Sync & Render
 
-Bootstrap the local contribution cache:
+Sync your activity data immediately:
 
 ```bash
 gheppo sync
 ```
 
-Open a new terminal tab or window to see your card.
+Open a new terminal window or tab to see your animated contribution card!
 
 ---
 
-## Command Reference
+## Data Sources
 
-| Command | Description |
+Gheppo supports multiple activity sources. You can switch between them at any time:
+
+### Interactive Selector
+```bash
+gheppo source
+```
+
+### Direct CLI Switching
+```bash
+# Switch to GitHub
+gheppo source github
+
+# Switch to LeetCode
+gheppo source leetcode <username>
+```
+
+| Source | Displayed Metrics |
 | :--- | :--- |
-| `gheppo` | Renders the cached card; spawns a detached refresh if the cache is >6h old. |
-| `gheppo sync` | Fetches the calendar and profile stats from the active source and updates the cache. |
-| `gheppo source` | Opens an interactive source selector (`github`, `leetcode`). |
-| `gheppo source <name> [user]` | Switches data source directly (`github` or `leetcode <username>`). |
-| `gheppo theme` | Opens an interactive theme selector (arrow keys / enter / q). |
-| `gheppo theme <name>` | Switches directly to a named theme. |
-| `gheppo auth login` | Interactive source selector & login (GitHub PAT or LeetCode username) + immediate sync & render. |
-| `gheppo auth status` | Shows current source and authentication status. |
-| `gheppo auth logout` | Clears credentials or configured username for the active source. |
-| `gheppo uninstall` | Removes the binary, shell integration block, and stored credentials. |
-| `gheppo --version` | Prints the current version. |
+| **GitHub** | 52-week contribution calendar, YTD contributions, active/longest streak, daily average, total stars, repositories, followers, following. |
+| **LeetCode** | 52-week submission calendar, problems solved (Easy / Medium / Hard breakdown), contest rating, global ranking, reputation, streaks. |
 
 ---
 
 ## Themes
 
-Five built-in themes: `github` (default), `mono`, `catppuccin`, `nord`, `gruvbox`.
+Gheppo features 5 built-in color schemes with theme-aware empty cell contrast:
 
 ```bash
+# Open interactive theme selector
 gheppo theme
+
+# Or switch directly
 gheppo theme catppuccin
 ```
 
-The choice persists to `<user config dir>/gheppo/config.json` and takes effect on the next render. `GHEPPO_THEME` overrides it per-session; a missing or corrupt config falls back to `github`.
+| Theme | Description |
+| :--- | :--- |
+| `github` | Classic GitHub green palette *(default)* |
+| `mono` | High-contrast monochromatic grayscale |
+| `catppuccin` | Catppuccin Mocha pastel palette |
+| `nord` | Arctic, north-bluish clean tones |
+| `gruvbox` | Warm retro groove palette |
+
+Themes are saved to `~/.config/gheppo/config.json` and can be overridden per session with `export GHEPPO_THEME=nord`.
 
 ---
 
-## Shell Integration
+## Command Reference
 
-- **Zsh**: a self-deregistering `zle-line-init` widget runs Gheppo after the prompt is ready, avoiding Powerlevel10k instant-prompt warnings and redrawing cleanly with `zle -I`.
-- **Bash**: wraps `PROMPT_COMMAND` (string and array forms) and restores the user's original commands after the first run.
+```
+Gheppo CLI - Terminal Contribution Dashboard
 
-Managed blocks are delimited by:
+Usage:
+  gheppo [command]
 
-```bash
-# >>> gheppo >>>
-...
-# <<< gheppo <<<
+Available Commands:
+  gheppo                        Render the contribution card (default)
+  gheppo sync                   Fetch fresh data from active source and update cache
+  gheppo source [name] [user]   View, interactively pick, or switch data source
+  gheppo theme [name]           View, interactively pick, or switch theme
+  gheppo auth login             Interactive login & setup
+  gheppo auth status            Check current source and authentication status
+  gheppo auth logout            Clear credentials/username for active source
+  gheppo uninstall              Remove binary, config, cache, and shell integration
+  gheppo --version              Display Gheppo version
 ```
 
 ---
 
-## Terminal Font
+## Environment Variables
 
-Gheppo is designed around **Iosevka Term**: compact terminal proportions, high density, and strong glyph alignment for contribution cells and statistics. It works with any monospace font, but the layout is tuned to Iosevka Term's metrics.
-
-Download: [Iosevka](https://github.com/be5invis/Iosevka)
-
----
-
-## Terminal Color Modes
-
-1. **`NO_COLOR` set**: ASCII output with no escape codes.
-2. **`COLORTERM=truecolor|24bit`**: full 24-bit rendering with the theme's palette.
-3. **`TERM=*256color*`**: 256-color approximation.
-4. **Otherwise**: ASCII fallback.
-
-Reveal animation is skipped automatically on non-TTY, `CI`, dumb terminals, or when `GHEPPO_NO_ANIMATION` is set.
+| Variable | Description |
+| :--- | :--- |
+| `GHEPPO_THEME` | Override active theme (`github`, `mono`, `catppuccin`, `nord`, `gruvbox`) |
+| `GHEPPO_NO_ANIMATION=1` | Disable progressive reveal animation and render statically |
+| `GITHUB_TOKEN` / `GH_TOKEN` | Fallback GitHub token if not present in OS keychain |
+| `NO_COLOR=1` | Enforce plain ASCII output with ANSI codes disabled |
 
 ---
 
-## Development & Verification
+## Architecture
 
-### Prerequisites
+```mermaid
+flowchart TD
+    CLI["Terminal Startup / gheppo"] --> Cache{"Usable cache?"}
+    Cache -- No --> Setup["Show auth/sync hint"]
+    Cache -- Yes --> Render["Instant local render"]
+    Render --> Gate{"Cache > 6h & Lock Free?"}
+    Gate -- No --> Exit["Return shell prompt"]
+    Gate -- Yes --> Spawn["Spawn detached gheppo sync"]
+    Spawn --> Exit
+    Spawn -. Background Task .-> Fetch["Fetch GitHub / LeetCode API"]
+    Fetch --> Save["Atomic cache write (.tmp -> rename)"]
+    Save -. Next Session .-> Cache
+```
 
-- Go 1.26.5 or newer, as required by `go.mod`.
-- The installer configures Bash or Zsh on Linux/macOS; it does not configure PowerShell or Fish.
-- An accessible OS keychain. Linux requires a running Secret Service provider, such as GNOME Keyring.
+For in-depth architectural details and technical design notes, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
-### Test Suite
+---
+
+## Uninstallation
+
+To cleanly remove Gheppo, its shell integration hooks, cache, and credentials:
 
 ```bash
-# Unit and integration tests
-go test ./...
-
-# Concurrency and race safety
-go test -race ./...
-
-# Cross-compilation checks
-GOOS=linux GOARCH=amd64 go build ./...
-GOOS=darwin GOARCH=arm64 go build ./...
-GOOS=windows GOARCH=amd64 go build ./...
+gheppo uninstall
 ```
 
 ---

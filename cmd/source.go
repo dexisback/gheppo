@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/dexisback/gheppo/internal/auth"
 	"github.com/dexisback/gheppo/internal/cache"
 	"github.com/dexisback/gheppo/internal/config"
 	"github.com/dexisback/gheppo/internal/leetcode"
@@ -129,6 +130,7 @@ func handleSourceSelection(source string, in io.Reader, out io.Writer) error {
 }
 
 func setupLeetCode(username string, in io.Reader, out io.Writer) error {
+	username = auth.SanitizeUsername(username)
 	if username == "" {
 		return promptAndSetupLeetCode(in, out)
 	}

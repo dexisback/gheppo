@@ -1,7 +1,9 @@
 package stats
 
 import (
+	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/dexisback/gheppo/internal/github"
@@ -12,6 +14,21 @@ func dateOnly(t time.Time) time.Time {
 	return time.Date(y, m, d, 0, 0, 0, 0, t.Location())
 }
 
+var ansiRegex = regexp.MustCompile(`(?i)\x1b(?:\[[0-9;?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|.)`)
+
+// SanitizeLogin strips ANSI escape codes and ASCII control characters from usernames.
+func SanitizeLogin(login string) string {
+	cleaned := ansiRegex.ReplaceAllString(login, "")
+	var b strings.Builder
+	b.Grow(len(cleaned))
+	for _, r := range cleaned {
+		if r >= 0x20 && r != 0x7f && (r < 0x80 || r > 0x9f) {
+			b.WriteRune(r)
+		}
+	}
+	return strings.TrimSpace(b.String())
+}
+
 // Summarize converts GitHub's contribution calendar into a renderer-ready
 // summary containing aligned grid data, intensity buckets, and streaks.
 func Summarize(cal *github.ContributionCalendar) *Summary {
@@ -20,7 +37,7 @@ func Summarize(cal *github.ContributionCalendar) *Summary {
 	}
 
 	summary := &Summary{
-		Login:      cal.Login,
+		Login:      SanitizeLogin(cal.Login),
 		Total:      cal.Total,
 		Followers:  cal.Followers,
 		Following:  cal.Following,

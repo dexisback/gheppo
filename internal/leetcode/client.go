@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +17,8 @@ import (
 	"github.com/dexisback/gheppo/internal/github"
 	"github.com/dexisback/gheppo/internal/stats"
 )
+
+const maxLeetCodeResponseBytes = 5 * 1024 * 1024 // 5MB limit
 
 var defaultGraphQLEndpoint = "https://leetcode.com/graphql"
 var graphqlEndpoint = defaultGraphQLEndpoint
@@ -119,6 +123,7 @@ query getUserProfile($username: String!) {
 // FetchUserSummary queries LeetCode public profile and transforms it into a standard Summary.
 func (c *Client) FetchUserSummary(username string) (*stats.Summary, error) {
 	username = strings.TrimSpace(username)
+	username = sanitizeString(username)
 	if username == "" {
 		return nil, errors.New("LeetCode username cannot be empty")
 	}
@@ -161,7 +166,8 @@ func (c *Client) FetchUserSummary(username string) (*stats.Summary, error) {
 	}
 
 	var userResp leetcodeUserResponse
-	if err := json.NewDecoder(resp.Body).Decode(&userResp); err != nil {
+	limitReader := io.LimitReader(resp.Body, maxLeetCodeResponseBytes)
+	if err := json.NewDecoder(limitReader).Decode(&userResp); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
@@ -232,8 +238,13 @@ func (c *Client) FetchUserSummary(username string) (*stats.Summary, error) {
 		}
 	}
 
+	sanitizedLogin := sanitizeString(user.Username)
+	if sanitizedLogin == "" {
+		sanitizedLogin = username
+	}
+
 	cal := &github.ContributionCalendar{
-		Login:      user.Username,
+		Login:      sanitizedLogin,
 		Total:      totalSubmissions,
 		Weeks:      weeks,
 		Followers:  user.Profile.Ranking,
@@ -244,7 +255,7 @@ func (c *Client) FetchUserSummary(username string) (*stats.Summary, error) {
 
 	summary := stats.Summarize(cal)
 	summary.Source = "leetcode"
-	summary.Login = user.Username
+	summary.Login = sanitizedLogin
 	summary.Total = totalSolved // Primary number: problems solved
 	summary.ProblemsSolved = totalSolved
 	summary.EasySolved = easySolved
@@ -260,4 +271,18 @@ func (c *Client) FetchUserSummary(username string) (*stats.Summary, error) {
 	}
 
 	return summary, nil
+}
+
+var ansiRegex = regexp.MustCompile(`(?i)\x1b(?:\[[0-9;?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|.)`)
+
+func sanitizeString(s string) string {
+	cleaned := ansiRegex.ReplaceAllString(s, "")
+	var b strings.Builder
+	b.Grow(len(cleaned))
+	for _, r := range cleaned {
+		if r >= 0x20 && r != 0x7f && (r < 0x80 || r > 0x9f) {
+			b.WriteRune(r)
+		}
+	}
+	return strings.TrimSpace(b.String())
 }

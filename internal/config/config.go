@@ -108,8 +108,14 @@ func SaveConfig(cfg *Config) error {
 	// Append trailing newline
 	data = append(data, '\n')
 
-	if err := os.WriteFile(path, data, 0600); err != nil {
-		return fmt.Errorf("write config file: %w", err)
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0600); err != nil {
+		return fmt.Errorf("write temp config file: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("atomic rename config file: %w", err)
 	}
 
 	return nil

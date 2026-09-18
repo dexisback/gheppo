@@ -7,8 +7,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"regexp"
+	"strings"
 	"time"
+)
+
+const (
+	maxGitHubResponseBytes = 5 * 1024 * 1024 // 5MB limit
+	maxRepoPages           = 10              // Cap star pagination at 1000 repositories
 )
 
 var graphqlURL = "https://api.github.com/graphql"
@@ -135,7 +143,8 @@ func (c *Client) FetchContributionCalendar(login string) (*ContributionCalendar,
 	}
 
 	var response graphQLResponse
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+	limitReader := io.LimitReader(resp.Body, maxGitHubResponseBytes)
+	if err := json.NewDecoder(limitReader).Decode(&response); err != nil {
 		return nil, fmt.Errorf("decode GitHub response: %w", err)
 	}
 
@@ -157,10 +166,11 @@ func (c *Client) FetchContributionCalendar(login string) (*ContributionCalendar,
 		}
 	}
 
-	// Handle pagination if user has > 100 repositories
+	// Handle pagination if user has > 100 repositories (bounded by maxRepoPages)
 	cursor := response.Data.User.OwnedRepositories.PageInfo.EndCursor
 	hasNext := response.Data.User.OwnedRepositories.PageInfo.HasNextPage
-	for hasNext && cursor != "" {
+	pagesFetched := 0
+	for hasNext && cursor != "" && pagesFetched < maxRepoPages {
 		nextPage, err := c.fetchNextRepoPage(login, cursor)
 		if err != nil {
 			break // gracefully keep accumulated stars
@@ -170,6 +180,7 @@ func (c *Client) FetchContributionCalendar(login string) (*ContributionCalendar,
 		}
 		cursor = nextPage.PageInfo.EndCursor
 		hasNext = nextPage.PageInfo.HasNextPage
+		pagesFetched++
 	}
 
 	// Determine repository count from repositoriesTotal or fallback to length
@@ -178,8 +189,13 @@ func (c *Client) FetchContributionCalendar(login string) (*ContributionCalendar,
 		repoCount = response.Data.User.RepositoriesFallback.TotalCount
 	}
 
+	sanitizedLogin := sanitizeString(response.Data.User.Login)
+	if sanitizedLogin == "" {
+		sanitizedLogin = sanitizeString(login)
+	}
+
 	result := &ContributionCalendar{
-		Login:      response.Data.User.Login,
+		Login:      sanitizedLogin,
 		Total:      calendar.TotalContributions,
 		Weeks:      make([]Week, 0, len(calendar.Weeks)),
 		Followers:  response.Data.User.Followers.TotalCount,
@@ -260,7 +276,8 @@ func (c *Client) fetchNextRepoPage(login, cursor string) (*repositoryConnection,
 	}
 
 	var response graphQLResponse
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+	limitReader := io.LimitReader(resp.Body, maxGitHubResponseBytes)
+	if err := json.NewDecoder(limitReader).Decode(&response); err != nil {
 		return nil, err
 	}
 
@@ -269,6 +286,20 @@ func (c *Client) fetchNextRepoPage(login, cursor string) (*repositoryConnection,
 	}
 
 	return &response.Data.User.OwnedRepositories, nil
+}
+
+var ansiRegex = regexp.MustCompile(`(?i)\x1b(?:\[[0-9;?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|.)`)
+
+func sanitizeString(s string) string {
+	cleaned := ansiRegex.ReplaceAllString(s, "")
+	var b strings.Builder
+	b.Grow(len(cleaned))
+	for _, r := range cleaned {
+		if r >= 0x20 && r != 0x7f && (r < 0x80 || r > 0x9f) {
+			b.WriteRune(r)
+		}
+	}
+	return strings.TrimSpace(b.String())
 }
 
 // GraphQL response structs

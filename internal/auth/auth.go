@@ -8,7 +8,9 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/zalando/go-keyring"
 	"golang.org/x/term"
@@ -185,7 +187,17 @@ func Login() error {
 	_, err := PromptAndLogin(os.Stdin, os.Stdout)
 	return err
 }
-var githubUserURL = "https://api.github.com/user" // for testing
+var (
+	githubUserURL = "https://api.github.com/user" // for testing
+	authClient    = &http.Client{
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+)
+
+const maxAuthResponseBytes = 1 * 1024 * 1024 // 1MB limit for user profile
 
 // SetGitHubUserURLForTesting overrides the GitHub user API endpoint for unit tests.
 func SetGitHubUserURLForTesting(url string) func() {
@@ -211,7 +223,7 @@ func resolveLogin(token string) (string, error) {
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/vnd.github+json")
 
-	response, err := http.DefaultClient.Do(req)
+	response, err := authClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("request authenticated user: %w", err)
 	}
@@ -225,17 +237,34 @@ func resolveLogin(token string) (string, error) {
 		Login string `json:"login"`
 	}
 
-	if err := json.NewDecoder(response.Body).Decode(&user); err != nil {
+	limitReader := io.LimitReader(response.Body, maxAuthResponseBytes)
+	if err := json.NewDecoder(limitReader).Decode(&user); err != nil {
 		return "", fmt.Errorf("decode GitHub user: %w", err)
 	}
 
 	login := strings.TrimSpace(user.Login)
+	login = SanitizeUsername(login)
 
 	if login == "" {
-		return "", errors.New("GitHub response did not contain a login")
+		return "", errors.New("GitHub response did not contain a valid login")
 	}
 
 	return login, nil
+}
+
+var ansiRegex = regexp.MustCompile(`(?i)\x1b(?:\[[0-9;?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|.)`)
+
+// SanitizeUsername strips ANSI escape codes and ASCII control characters from usernames.
+func SanitizeUsername(username string) string {
+	cleaned := ansiRegex.ReplaceAllString(username, "")
+	var b strings.Builder
+	b.Grow(len(cleaned))
+	for _, r := range cleaned {
+		if r >= 0x20 && r != 0x7f && (r < 0x80 || r > 0x9f) {
+			b.WriteRune(r)
+		}
+	}
+	return strings.TrimSpace(b.String())
 }
 
 

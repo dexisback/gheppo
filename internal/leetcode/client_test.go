@@ -130,3 +130,45 @@ func TestFetchUserSummaryEmptyUsername(t *testing.T) {
 		t.Fatal("expected error for empty username, got nil")
 	}
 }
+
+func TestFetchUserSummarySanitizesUsername(t *testing.T) {
+	mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := `{
+			"data": {
+				"matchedUser": {
+					"username": "\u001b[31mtourist\u001b[0m",
+					"profile": { "ranking": 1, "reputation": 10 },
+					"submitStatsGlobal": {
+						"acSubmissionNum": [
+							{"difficulty": "All", "count": 10, "submissions": 20}
+						]
+					},
+					"userCalendar": {
+						"activeYears": [2026],
+						"streak": 1,
+						"totalActiveDays": 1,
+						"submissionCalendar": "{}"
+					}
+				}
+			}
+		}`
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(resp))
+	})
+
+	server := httptest.NewServer(mockHandler)
+	defer server.Close()
+
+	restore := SetEndpointForTesting(server.URL)
+	defer restore()
+
+	client := NewClient()
+	summary, err := client.FetchUserSummary("\x1b[31mtourist\x1b[0m")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if summary.Login != "tourist" {
+		t.Errorf("Login = %q, want sanitized %q", summary.Login, "tourist")
+	}
+}

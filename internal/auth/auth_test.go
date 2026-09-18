@@ -322,3 +322,67 @@ func TestPromptAndLoginEmptyToken(t *testing.T) {
 		t.Fatal("expected error for empty token, got nil")
 	}
 }
+
+func TestSanitizeUsername(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "clean username",
+			input: "dexisback",
+			want:  "dexisback",
+		},
+		{
+			name:  "username with ansi color escape",
+			input: "\x1b[31mdexisback\x1b[0m",
+			want:  "dexisback",
+		},
+		{
+			name:  "username with control characters",
+			input: "user\r\n\x07\x08name",
+			want:  "username",
+		},
+		{
+			name:  "username with osc escape",
+			input: "\x1b]0;fake-title\x07attacker",
+			want:  "attacker",
+		},
+		{
+			name:  "unicode and allowed characters",
+			input: "user_name-123.test",
+			want:  "user_name-123.test",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := SanitizeUsername(tt.input)
+			if got != tt.want {
+				t.Errorf("SanitizeUsername(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestResolveLoginSanitizesLogin(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"login":"\u001b[31mmalicious\u001b[0m"}`))
+	}))
+	defer server.Close()
+
+	restoreURL := SetGitHubUserURLForTesting(server.URL)
+	defer restoreURL()
+
+	login, err := resolveLogin("dummy-token")
+	if err != nil {
+		t.Fatalf("resolveLogin returned error: %v", err)
+	}
+
+	if login != "malicious" {
+		t.Errorf("login was not sanitized: got %q, want %q", login, "malicious")
+	}
+}

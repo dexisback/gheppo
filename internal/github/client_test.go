@@ -295,3 +295,91 @@ func TestFetchContributionCalendarUserNotFound(t *testing.T) {
 		)
 	}
 }
+
+func TestFetchContributionCalendarSanitizesLogin(t *testing.T) {
+	server := setupTestServer(t, `{
+		"data": {
+			"user": {
+				"login": "\u001b[31minjected\u001b[0m\r\nuser",
+				"followers": { "totalCount": 0 },
+				"following": { "totalCount": 0 },
+				"repositoriesTotal": { "totalCount": 0 },
+				"ownedRepositories": {
+					"pageInfo": { "hasNextPage": false, "endCursor": "" },
+					"nodes": []
+				},
+				"contributionsCollection": {
+					"contributionCalendar": {
+						"totalContributions": 0,
+						"weeks": []
+					}
+				}
+			}
+		}
+	}`, http.StatusOK)
+	defer server.Close()
+
+	useTestURL(t, server.URL)
+
+	client := NewClient("test-token")
+	result, err := client.FetchContributionCalendar("injected")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.Login != "injecteduser" {
+		t.Errorf("Login = %q, want sanitized %q", result.Login, "injecteduser")
+	}
+}
+
+func TestFetchContributionCalendarPaginationCap(t *testing.T) {
+	pagesCalled := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		pagesCalled++
+		w.Header().Set("Content-Type", "application/json")
+		// Always return hasNextPage = true to simulate infinite loop
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"data": map[string]interface{}{
+				"user": map[string]interface{}{
+					"login": "infinite-user",
+					"followers": map[string]interface{}{"totalCount": 0},
+					"following": map[string]interface{}{"totalCount": 0},
+					"repositoriesTotal": map[string]interface{}{"totalCount": 0},
+					"ownedRepositories": map[string]interface{}{
+						"pageInfo": map[string]interface{}{
+							"hasNextPage": true,
+							"endCursor": "repeat-cursor",
+						},
+						"nodes": []map[string]interface{}{
+							{"stargazerCount": 1},
+						},
+					},
+					"contributionsCollection": map[string]interface{}{
+						"contributionCalendar": map[string]interface{}{
+							"totalContributions": 0,
+							"weeks": []interface{}{},
+						},
+					},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	useTestURL(t, server.URL)
+
+	client := NewClient("test-token")
+	result, err := client.FetchContributionCalendar("infinite-user")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// 1 initial request + maxRepoPages (10) pagination requests = 11 total requests
+	expectedMaxCalls := 1 + maxRepoPages
+	if pagesCalled > expectedMaxCalls {
+		t.Errorf("pagesCalled = %d, exceeded cap of %d", pagesCalled, expectedMaxCalls)
+	}
+	if result.TotalStars != expectedMaxCalls {
+		t.Errorf("TotalStars = %d, want %d", result.TotalStars, expectedMaxCalls)
+	}
+}

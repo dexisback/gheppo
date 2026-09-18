@@ -12,7 +12,7 @@
 > Your GitHub & LeetCode contribution graphs, every time you open a terminal.
 
 <p align="center">
-  <img src="assets/preview.png" alt="Gheppo Terminal Preview" width="640" />
+  <img width="850" alt="gheppo-launch-post" src="https://github.com/user-attachments/assets/17b07c03-dabe-453c-8ef3-386bb4300e61" />
 </p>
 
 <p align="center">

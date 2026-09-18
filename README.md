@@ -87,12 +87,14 @@ Open a new terminal tab or window to see your card.
 | Command | Description |
 | :--- | :--- |
 | `gheppo` | Renders the cached card; spawns a detached refresh if the cache is >6h old. |
-| `gheppo sync` | Fetches the calendar and profile stats from GitHub GraphQL and atomically updates the cache. |
+| `gheppo sync` | Fetches the calendar and profile stats from the active source and updates the cache. |
+| `gheppo source` | Opens an interactive source selector (`github`, `leetcode`). |
+| `gheppo source <name> [user]` | Switches data source directly (`github` or `leetcode <username>`). |
 | `gheppo theme` | Opens an interactive theme selector (arrow keys / enter / q). |
 | `gheppo theme <name>` | Switches directly to a named theme. |
-| `gheppo auth login` | Prompts for a GitHub PAT, verifies it, and stores it in the OS keychain. |
-| `gheppo auth status` | Shows the authenticated account. |
-| `gheppo auth logout` | Removes credentials from the keychain. |
+| `gheppo auth login` | Interactive source selector & login (GitHub PAT or LeetCode username) + immediate sync & render. |
+| `gheppo auth status` | Shows current source and authentication status. |
+| `gheppo auth logout` | Clears credentials or configured username for the active source. |
 | `gheppo uninstall` | Removes the binary, shell integration block, and stored credentials. |
 | `gheppo --version` | Prints the current version. |
 

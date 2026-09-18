@@ -52,33 +52,7 @@ func runSource(cmd *cobra.Command, args []string) error {
 			} else {
 				username = config.GetLeetCodeUsername()
 			}
-
-			if username == "" {
-				if term.IsTerminal(int(os.Stdout.Fd())) && term.IsTerminal(int(os.Stdin.Fd())) {
-					return promptAndSetupLeetCode(in, out)
-				}
-				return fmt.Errorf("missing LeetCode username: run `gheppo source leetcode <username>`")
-			}
-
-			client := leetcode.NewClient()
-			summary, err := client.FetchUserSummary(username)
-			if err != nil {
-				return fmt.Errorf("fetching leetcode user: %w", err)
-			}
-
-			if err := config.SetSource(config.SourceLeetCode); err != nil {
-				return err
-			}
-			if err := config.SetLeetCodeUsername(username); err != nil {
-				return err
-			}
-			if err := cache.SaveForSource(config.SourceLeetCode, summary); err != nil {
-				return fmt.Errorf("saving cache: %w", err)
-			}
-
-			fmt.Fprintf(out, "Source set to 'leetcode' (@%s).\n", username)
-			render.Animate(out, summary)
-			return nil
+			return setupLeetCode(username, in, out)
 
 		default:
 			return fmt.Errorf("unknown source %q (available: %s)", targetSource, strings.Join(config.AvailableSources(), ", "))
@@ -154,18 +128,9 @@ func handleSourceSelection(source string, in io.Reader, out io.Writer) error {
 	}
 }
 
-func promptAndSetupLeetCode(in io.Reader, out io.Writer) error {
-	fmt.Fprintln(out)
-	fmt.Fprint(out, "Enter your LeetCode username: ")
-
-	scanner := bufio.NewScanner(in)
-	if !scanner.Scan() {
-		return nil
-	}
-
-	username := strings.TrimSpace(scanner.Text())
+func setupLeetCode(username string, in io.Reader, out io.Writer) error {
 	if username == "" {
-		return fmt.Errorf("username cannot be empty")
+		return promptAndSetupLeetCode(in, out)
 	}
 
 	fmt.Fprintf(out, "Validating @%s on LeetCode...\n", username)
@@ -173,7 +138,7 @@ func promptAndSetupLeetCode(in io.Reader, out io.Writer) error {
 	client := leetcode.NewClient()
 	summary, err := client.FetchUserSummary(username)
 	if err != nil {
-		return fmt.Errorf("validating leetcode profile: %w", err)
+		return fmt.Errorf("fetching leetcode user: %w", err)
 	}
 
 	if err := config.SetSource(config.SourceLeetCode); err != nil {
@@ -186,7 +151,31 @@ func promptAndSetupLeetCode(in io.Reader, out io.Writer) error {
 		return fmt.Errorf("saving cache: %w", err)
 	}
 
-	fmt.Fprintln(out)
+	fmt.Fprintf(out, "Source set to 'leetcode' (@%s).\n\n", username)
 	render.Animate(out, summary)
 	return nil
+}
+
+func promptAndSetupLeetCode(in io.Reader, out io.Writer) error {
+	if in == nil {
+		in = os.Stdin
+	}
+	if out == nil {
+		out = os.Stdout
+	}
+
+	fmt.Fprintln(out)
+	fmt.Fprint(out, "Enter your LeetCode username: ")
+
+	scanner := bufio.NewScanner(in)
+	if !scanner.Scan() {
+		return fmt.Errorf("missing LeetCode username: run `gheppo source leetcode <username>`")
+	}
+
+	username := strings.TrimSpace(scanner.Text())
+	if username == "" {
+		return fmt.Errorf("username cannot be empty")
+	}
+
+	return setupLeetCode(username, in, out)
 }

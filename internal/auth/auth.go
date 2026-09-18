@@ -1,9 +1,11 @@
 package auth
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -126,27 +128,42 @@ func ClearToken() error {
 	return nil
 }
 
-// Login interactively asks for a GitHub PAT, validates it,
-// resolves the authenticated GitHub username, and stores both.
-func Login() error {
-	fmt.Print("GitHub Personal Access Token: ")
-
-	tokenBytes, err := term.ReadPassword(0)
-	fmt.Println()
-
-	if err != nil {
-		return fmt.Errorf("read token: %w", err)
+// PromptAndLogin interactively asks for a GitHub PAT using the provided reader and writer,
+// validates it, resolves the authenticated GitHub username, and stores both in keyring.
+func PromptAndLogin(in io.Reader, out io.Writer) (*Credentials, error) {
+	if in == nil {
+		in = os.Stdin
+	}
+	if out == nil {
+		out = os.Stdout
 	}
 
-	token := strings.TrimSpace(string(tokenBytes))
+	fmt.Fprint(out, "GitHub Personal Access Token: ")
+
+	var token string
+	if f, ok := in.(*os.File); ok && term.IsTerminal(int(f.Fd())) {
+		tokenBytes, err := term.ReadPassword(int(f.Fd()))
+		fmt.Fprintln(out)
+		if err != nil {
+			return nil, fmt.Errorf("read token: %w", err)
+		}
+		token = strings.TrimSpace(string(tokenBytes))
+	} else {
+		scanner := bufio.NewScanner(in)
+		if scanner.Scan() {
+			token = strings.TrimSpace(scanner.Text())
+		}
+		fmt.Fprintln(out)
+	}
 
 	if token == "" {
-		return errors.New("token cannot be empty")
+		return nil, errors.New("token cannot be empty")
 	}
 
+	fmt.Fprintln(out, "Validating GitHub token...")
 	login, err := resolveLogin(token)
 	if err != nil {
-		return fmt.Errorf("validate GitHub token: %w", err)
+		return nil, fmt.Errorf("validate GitHub token: %w", err)
 	}
 
 	credentials := &Credentials{
@@ -155,14 +172,29 @@ func Login() error {
 	}
 
 	if err := SaveCredentials(credentials); err != nil {
-		return err
+		return nil, err
 	}
 
-	fmt.Printf("Authenticated as @%s.\n", login)
-
-	return nil
+	fmt.Fprintf(out, "Authenticated as @%s.\n", login)
+	return credentials, nil
 }
-var githubUserURL = "https://api.github.com/user"    //for the new tests
+
+// Login interactively asks for a GitHub PAT, validates it,
+// resolves the authenticated GitHub username, and stores both.
+func Login() error {
+	_, err := PromptAndLogin(os.Stdin, os.Stdout)
+	return err
+}
+var githubUserURL = "https://api.github.com/user" // for testing
+
+// SetGitHubUserURLForTesting overrides the GitHub user API endpoint for unit tests.
+func SetGitHubUserURLForTesting(url string) func() {
+	prev := githubUserURL
+	githubUserURL = url
+	return func() {
+		githubUserURL = prev
+	}
+}
 
 // resolveLogin validates the PAT against GitHub and retrieves
 // the username associated with the authenticated account.

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/zalando/go-keyring"
@@ -263,5 +264,61 @@ func TestResolveLogin(t *testing.T) {
 
 	if login != "test-user" {
 		t.Fatalf("login = %q, want %q", login, "test-user")
+	}
+}
+
+func TestPromptAndLogin(t *testing.T) {
+	setupTestKeyring(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer valid-token" {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"login":"gh-tester"}`))
+	}))
+	defer server.Close()
+
+	originalClient := http.DefaultClient
+	http.DefaultClient = server.Client()
+	t.Cleanup(func() {
+		http.DefaultClient = originalClient
+	})
+
+	restoreURL := SetGitHubUserURLForTesting(server.URL)
+	defer restoreURL()
+
+	in := strings.NewReader("valid-token\n")
+	out := new(strings.Builder)
+
+	creds, err := PromptAndLogin(in, out)
+	if err != nil {
+		t.Fatalf("PromptAndLogin failed: %v", err)
+	}
+
+	if creds.Login != "gh-tester" || creds.Token != "valid-token" {
+		t.Fatalf("unexpected creds: %+v", creds)
+	}
+
+	stored, err := GetCredentials()
+	if err != nil {
+		t.Fatalf("GetCredentials failed: %v", err)
+	}
+	if stored.Login != "gh-tester" || stored.Token != "valid-token" {
+		t.Fatalf("unexpected stored credentials: %+v", stored)
+	}
+}
+
+func TestPromptAndLoginEmptyToken(t *testing.T) {
+	setupTestKeyring(t)
+
+	in := strings.NewReader("\n")
+	out := new(strings.Builder)
+
+	_, err := PromptAndLogin(in, out)
+	if err == nil {
+		t.Fatal("expected error for empty token, got nil")
 	}
 }

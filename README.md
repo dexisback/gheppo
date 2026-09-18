@@ -1,6 +1,7 @@
 # Gheppo
-
+<img width="1920" height="1440" alt="gheppo-launch-post" src="https://github.com/user-attachments/assets/17b07c03-dabe-453c-8ef3-386bb4300e61" />
 > Your GitHub & LeetCode contribution graphs, every time you open a terminal.
+
 
 **Go 1.26.5+** · **[MIT License](LICENSE)**
 

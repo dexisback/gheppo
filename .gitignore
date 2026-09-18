@@ -3,3 +3,4 @@ gheppo
 .env
 .agents/
 skills-lock.json
+dist/*

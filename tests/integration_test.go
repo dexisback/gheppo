@@ -124,6 +124,8 @@ func TestGheppoFirstRun(t *testing.T) {
 		"HOME=" + t.TempDir(),
 		"XDG_CACHE_HOME=" + cacheDir,
 		"XDG_CONFIG_HOME=" + configDir,
+		"DBUS_SESSION_BUS_ADDRESS=/dev/null",
+		"XDG_RUNTIME_DIR=" + t.TempDir(),
 	}
 
 	output, err := cmd.CombinedOutput()

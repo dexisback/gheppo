@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dexisback/gheppo/internal/config"
 	"github.com/dexisback/gheppo/internal/stats"
 )
 
@@ -84,6 +85,56 @@ func TestRenderContributionGraphAllBuckets(t *testing.T) {
 	// Verify bucket 4 uses theme.ContributionLevel4
 	if !strings.Contains(rows[4], theme.ContributionLevel4) {
 		t.Errorf("bucket 4 missing theme.ContributionLevel4: %q", rows[4])
+	}
+}
+
+func TestRenderContributionGraphZeroActivityAcrossAllThemes(t *testing.T) {
+	themes := config.ListThemes()
+	cfg := DefaultGraphConfig()
+
+	for _, cfgTheme := range themes {
+		t.Run(cfgTheme.Name, func(t *testing.T) {
+			// Create a 2-week grid of zero-activity days (bucket 0, empty: false)
+			grid := make([][]stats.Cell, 2)
+			for w := 0; w < 2; w++ {
+				grid[w] = make([]stats.Cell, 7)
+				for d := 0; d < 7; d++ {
+					grid[w][d] = stats.Cell{
+						Bucket: 0,
+						Empty:  false,
+					}
+				}
+			}
+
+			graph := NewContributionGraph(grid, 2)
+
+			// 1. TrueColor Mode: zero-activity cells must contain theme's EmptyCell escape
+			tcTheme := ResolveTheme(cfgTheme, ColorTrueColor)
+			tcRows := RenderContributionGraph(graph, tcTheme, cfg)
+			for rIdx, row := range tcRows {
+				if !strings.Contains(row, tcTheme.EmptyCell) {
+					t.Errorf("theme %q row %d missing TrueColor EmptyCell escape (%q): %q",
+						cfgTheme.Name, rIdx, tcTheme.EmptyCell, row)
+				}
+				if !strings.Contains(row, "■") {
+					t.Errorf("theme %q row %d missing block glyph: %q", cfgTheme.Name, rIdx, row)
+				}
+				// Empty cells should NOT be rendered with Level1 color
+				if strings.Contains(row, tcTheme.ContributionLevel1) {
+					t.Errorf("theme %q row %d should not contain Level1 color for zero-activity cells", cfgTheme.Name, rIdx)
+				}
+			}
+
+			// 2. 256-Color Mode: zero-activity cells must contain 256-color EmptyCell escape
+			c256Theme := ResolveTheme(cfgTheme, Color256)
+			c256Rows := RenderContributionGraph(graph, c256Theme, cfg)
+			for rIdx, row := range c256Rows {
+				if !strings.Contains(row, c256Theme.EmptyCell) {
+					t.Errorf("theme %q row %d missing 256-color EmptyCell escape (%q): %q",
+						cfgTheme.Name, rIdx, c256Theme.EmptyCell, row)
+				}
+			}
+		})
 	}
 }
 

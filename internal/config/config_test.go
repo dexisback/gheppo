@@ -1,10 +1,96 @@
 package config
 
 import (
+	"math"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 )
+
+func parseHex(hex string) (r, g, b float64, ok bool) {
+	hex = strings.TrimPrefix(hex, "#")
+	if len(hex) != 6 {
+		return 0, 0, 0, false
+	}
+	val, err := strconv.ParseUint(hex, 16, 32)
+	if err != nil {
+		return 0, 0, 0, false
+	}
+	toLinear := func(c uint8) float64 {
+		v := float64(c) / 255.0
+		if v <= 0.04045 {
+			return v / 12.92
+		}
+		return math.Pow((v+0.055)/1.055, 2.4)
+	}
+	return toLinear(uint8(val >> 16)), toLinear(uint8((val >> 8) & 0xFF)), toLinear(uint8(val & 0xFF)), true
+}
+
+func relativeLuminance(hex string) (float64, bool) {
+	r, g, b, ok := parseHex(hex)
+	if !ok {
+		return 0, false
+	}
+	return 0.2126*r + 0.7152*g + 0.0722*b, true
+}
+
+func TestThemeEmptyCellContrastAndProgression(t *testing.T) {
+	themes := ListThemes()
+	seenEmptyColors := make(map[string]string)
+
+	for _, theme := range themes {
+		t.Run(theme.Name, func(t *testing.T) {
+			// 1. Level-0 must not match the theme background (would make empty cells invisible)
+			if strings.EqualFold(theme.GraphLevels[0], theme.Background) {
+				t.Errorf("theme %q Level-0 color (%s) is identical to Background (%s); empty cells will be invisible",
+					theme.Name, theme.GraphLevels[0], theme.Background)
+			}
+			if strings.EqualFold(theme.GraphEmpty, theme.Background) {
+				t.Errorf("theme %q GraphEmpty color (%s) is identical to Background (%s)",
+					theme.Name, theme.GraphEmpty, theme.Background)
+			}
+
+			// 2. GraphEmpty and GraphLevels[0] must match
+			if !strings.EqualFold(theme.GraphEmpty, theme.GraphLevels[0]) {
+				t.Errorf("theme %q GraphEmpty (%s) != GraphLevels[0] (%s)",
+					theme.Name, theme.GraphEmpty, theme.GraphLevels[0])
+			}
+
+			// 3. Level-0 must be distinct across themes (theme-aware, not hardcoded global)
+			if prevTheme, exists := seenEmptyColors[strings.ToLower(theme.GraphLevels[0])]; exists {
+				t.Errorf("theme %q shares identical Level-0 color %s with theme %q; level-0 should be theme-aware",
+					theme.Name, theme.GraphLevels[0], prevTheme)
+			}
+			seenEmptyColors[strings.ToLower(theme.GraphLevels[0])] = theme.Name
+
+			// 4. All 5 graph levels must be pairwise distinct
+			for i := 0; i < 5; i++ {
+				for j := i + 1; j < 5; j++ {
+					if strings.EqualFold(theme.GraphLevels[i], theme.GraphLevels[j]) {
+						t.Errorf("theme %q has duplicate graph level colors at level %d and %d: %s",
+							theme.Name, i, j, theme.GraphLevels[i])
+					}
+				}
+			}
+
+			// 5. Monotonic perceptual progression: Level 0 must be darker than Level 1, and so on
+			var prevLum float64 = -1
+			for lvl := 0; lvl < 5; lvl++ {
+				lum, ok := relativeLuminance(theme.GraphLevels[lvl])
+				if !ok {
+					t.Fatalf("theme %q has invalid hex color at level %d: %s", theme.Name, lvl, theme.GraphLevels[lvl])
+				}
+				if lvl > 0 && lum <= prevLum {
+					t.Errorf("theme %q level %d (lum=%.4f, %s) is not brighter than level %d (lum=%.4f, %s)",
+						theme.Name, lvl, lum, theme.GraphLevels[lvl], lvl-1, prevLum, theme.GraphLevels[lvl-1])
+				}
+				prevLum = lum
+			}
+		})
+	}
+}
 
 func TestThemeRegistry(t *testing.T) {
 	expectedThemes := []string{"github", "mono", "catppuccin", "nord", "gruvbox"}

@@ -1,9 +1,25 @@
-# Gheppo
-<img width="1920" height="1440" alt="gheppo-launch-post" src="https://github.com/user-attachments/assets/17b07c03-dabe-453c-8ef3-386bb4300e61" />
+```text
+   _____ _                               
+  / ____| |                              
+ | |  __| |__   ___ _ __  _ __   ___     
+ | | |_ | '_ \ / _ \ '_ \| '_ \ / _ \    
+ | |__| | | | |  __/ |_) | |_) | (_) |   
+  \_____|_| |_|\___| .__/| .__/ \___/    
+                   | |   | |             
+                   |_|   |_|             
+```
+
 > Your GitHub & LeetCode contribution graphs, every time you open a terminal.
 
+<p align="center">
+  <img src="assets/preview.png" alt="Gheppo Terminal Preview" width="640" />
+</p>
 
-**Go 1.26.5+** · **[MIT License](LICENSE)**
+<p align="center">
+  <a href="https://golang.org"><img src="https://img.shields.io/github/go-mod/go-version/dexisback/gheppo" alt="Go Version"></a>
+  <a href="https://github.com/dexisback/gheppo/releases"><img src="https://img.shields.io/github/v/release/dexisback/gheppo" alt="Release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+</p>
 
 Gheppo brings your contribution graphs, activity streaks, and profile statistics into your terminal. It renders cached data locally for instant startup, then refreshes stale data in a detached background process. Normal rendering never blocks on remote API requests.
 

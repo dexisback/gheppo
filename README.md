@@ -69,7 +69,9 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for engineering design details.
 
 ### Remote Installer (macOS, Linux & Windows)
 
-Install the latest release binary:
+> **Latest release:** [`v0.1.0`](https://github.com/dexisback/gheppo/releases/tag/v0.1.0) — the installer below installs this version by default.
+
+Install the release binary:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/dexisback/gheppo/main/scripts/install.sh | sh
@@ -83,10 +85,9 @@ wget -qO- https://raw.githubusercontent.com/dexisback/gheppo/main/scripts/instal
 
 The script automatically:
 1. Detects OS (`Linux`, `Darwin`, `MINGW/MSYS`) and CPU architecture (`x86_64/amd64`, `arm64/aarch64`).
-2. Downloads the official release archive and verifies its SHA-256 checksum from `checksums.txt`.
+2. Downloads the matching release archive from GitHub Releases and verifies its SHA-256 checksum from `checksums.txt` (fails closed on any network failure or checksum mismatch).
 3. Installs the executable to `~/.local/bin/gheppo` (or `$GHEPPO_INSTALL_DIR`).
-4. Configures shell integration in `~/.zshrc` or `~/.bashrc`.
-5. Adds the install directory to your `$PATH` permanently (opt out with `GHEPPO_ADD_PATH=0`), so the card renders in every new terminal.
+4. Adds the shell integration to `~/.zshrc`/`~/.bashrc` and a persistent PATH block (opt out with `GHEPPO_ADD_PATH=0`), so the card renders in every new terminal.
 
 #### Persistent PATH Setup
 
@@ -130,17 +131,54 @@ echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 
 ---
 
-### Platform-Specific Details
+### Step-by-Step by OS
 
 #### macOS (Apple Silicon & Intel)
-The installer selects the matching Darwin binary (`arm64` or `amd64`) and uses macOS Keychain for credential storage.
 
-#### Linux
-Binaries are provided for `linux_amd64` and `linux_arm64`. Credentials are stored via the Linux Secret Service API (e.g. GNOME Keyring, KWallet, KeePassXC). On headless systems without a Secret Service daemon, export `GITHUB_TOKEN` in your shell profile.
+1. Open **Terminal**.
+2. Run the `curl` one-liner above. The installer detects `arm64` (M-series) vs `amd64` (Intel) automatically; `curl` and `zsh` are preinstalled, so nothing else is needed.
+3. Wait for `Gheppo installation complete.` — the binary lands in `~/.local/bin/gheppo`, and your `~/.zshrc` now has the shell integration + PATH blocks.
+4. Open a **new** terminal window (or run `source ~/.zshrc`) — the contribution card renders above your first prompt.
+5. Authenticate and sync once:
+   ```bash
+   gheppo auth login
+   gheppo sync
+   ```
+Credentials are stored in macOS Keychain.
 
-#### Windows
-- **WSL / MSYS2 / Git Bash**: Run the remote curl installer directly. On MSYS2/Git Bash, the installer also adds the install directory to the Windows user PATH (via PowerShell), so `gheppo` resolves in PowerShell and `cmd` too.
-- **Manual Binary**: Download `gheppo_<version>_windows_amd64.zip` from [GitHub Releases](https://github.com/dexisback/gheppo/releases), extract `gheppo.exe` into a directory on your `%PATH%` (or add the folder to your user `%PATH%` via System Properties → Environment Variables). Credentials are stored in Windows Credential Manager.
+#### Linux (amd64 & arm64)
+
+1. Open a terminal (`bash` or `zsh`).
+2. Run the `curl` (or `wget`) one-liner above.
+3. Wait for `Gheppo installation complete.`, then open a new terminal (or `source ~/.bashrc` / `~/.zshrc`) — the card renders above your prompt.
+4. Authenticate and sync once:
+   ```bash
+   gheppo auth login
+   gheppo sync
+   ```
+Credentials go through the Secret Service API (GNOME Keyring, KWallet, KeePassXC). On headless servers without a Secret Service daemon, export `GITHUB_TOKEN` in your shell profile instead of `gheppo auth login`.
+
+#### Windows — Git Bash, MSYS2 or WSL (recommended)
+
+The installer is a POSIX shell script, so native `cmd`/PowerShell **cannot** run it — use Git Bash (or MSYS2/WSL).
+
+1. Install [Git for Windows](https://git-scm.com/download/win) if you don't have it (it bundles **Git Bash**).
+2. Open **Git Bash**.
+3. Run the `curl` one-liner above.
+4. Wait for `Gheppo installation complete.` — the integration block is written to `~/.bashrc`, and `~/.local/bin` is added to the Windows user PATH via a type-preserving PowerShell registry update, so `gheppo` also resolves in PowerShell and `cmd`.
+5. Open a **new** Git Bash window — the card renders above your prompt.
+6. Authenticate and sync once:
+   ```bash
+   gheppo auth login
+   gheppo sync
+   ```
+Credentials are stored in Windows Credential Manager.
+
+#### Windows — manual (PowerShell / cmd)
+
+1. Download `gheppo_0.1.0_windows_amd64.zip` (or `gheppo_0.1.0_windows_arm64.zip`) from [GitHub Releases](https://github.com/dexisback/gheppo/releases).
+2. Extract `gheppo.exe` into a folder on your `%PATH%` (or add the folder via System Properties → Environment Variables).
+3. Open a **new** PowerShell/cmd window, then run `gheppo auth login` and `gheppo sync`.
 
 #### Custom Installer Options
 Override release version or installation target directory via environment variables:

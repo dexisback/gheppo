@@ -274,15 +274,157 @@ else
     echo "Gheppo was installed, but shell integration was not configured automatically."
 fi
 
-# 10. Check PATH
-case ":$PATH:" in
-    *":$INSTALL_DIR:"*)
-        ;;
-    *)
+# 10. Persistent PATH configuration (automatic)
+#
+# The shell integration above runs `command gheppo`, which only resolves when
+# the install directory is on the PATH in every shell that sources the rc
+# file. A one-off `export PATH=...` survives only the current session, so the
+# installer writes a managed PATH entry automatically. The current session's
+# PATH is irrelevant here; only the rc file decides what future shells see.
+#
+#   GHEPPO_ADD_PATH=0  -> opt out and print the manual steps instead
+
+GHEPPO_PATH_START="# >>> gheppo PATH >>>"
+GHEPPO_PATH_END="# <<< gheppo PATH <<<"
+
+install_dir_on_path() {
+    case ":$PATH:" in
+        *":$INSTALL_DIR:"*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+path_entry_in_rc() {
+    _path_rc="$1"
+    [ -n "$_path_rc" ] || return 1
+    [ -f "$_path_rc" ] || return 1
+    # Match both an absolute reference to the install directory and, for the
+    # default location, the portable "$HOME/.local/bin" / "~/.local/bin" forms.
+    if grep -Fq -- "$INSTALL_DIR" "$_path_rc" 2>/dev/null; then
+        return 0
+    fi
+    if [ "$INSTALL_DIR" = "${HOME}/.local/bin" ]; then
+        grep -Fq -- ".local/bin" "$_path_rc" 2>/dev/null
+    else
+        return 1
+    fi
+}
+
+add_path_block() {
+    _path_rc="$1"
+    if [ -z "$_path_rc" ]; then
+        return 1
+    fi
+    if [ ! -f "$_path_rc" ] || ! grep -Fqx "$GHEPPO_PATH_START" "$_path_rc" 2>/dev/null; then
+        # Requirement 8: if the directory is already present anywhere in the rc
+        # file (user's own PATH line, pipx-style config, ...), don't add a
+        # duplicate PATH entry.
+        if path_entry_in_rc "$_path_rc"; then
+            echo "'$INSTALL_DIR' is already present in $_path_rc; not adding a duplicate PATH entry."
+            return 0
+        fi
+        {
+            printf '\n%s\n' "$GHEPPO_PATH_START"
+            printf 'export PATH="%s:$PATH"\n' "$INSTALL_DIR"
+            printf '%s\n' "$GHEPPO_PATH_END"
+        } >> "$_path_rc" || return 1
+    fi
+    echo "Added persistent PATH entry to $_path_rc"
+    return 0
+}
+
+add_windows_user_path() {
+    # Git Bash sessions source ~/.bashrc (the POSIX block above covers them);
+    # this additionally makes gheppo.exe resolvable from PowerShell and cmd.
+    _win_dir="$(cygpath -w "$INSTALL_DIR" 2>/dev/null || true)"
+    if [ -z "$_win_dir" ]; then
+        echo "Skipping Windows user PATH update: could not resolve the Windows form of '$INSTALL_DIR'."
+        return 1
+    fi
+    _ps="$(command -v powershell.exe 2>/dev/null || command -v pwsh 2>/dev/null || true)"
+    if [ -z "$_ps" ]; then
+        echo "Skipping Windows user PATH update: PowerShell not found."
+        return 1
+    fi
+    if "$_ps" -NoProfile -Command "\$k = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', \$true); if (-not \$k) { exit 1 }; \$o = [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames; try { \$kind = \$k.GetValueKind('Path') } catch { \$kind = [Microsoft.Win32.RegistryValueKind]::String }; \$raw = \$k.GetValue('Path', '', \$o); \$exp = \$k.GetValue('Path', ''); if ((\$raw -and \$raw.Split(';') -contains '$_win_dir') -or (\$exp -and \$exp.Split(';') -contains '$_win_dir')) { exit 0 }; if (\$raw) { \$new = \$raw.TrimEnd(';') + ';$_win_dir' } else { \$new = '$_win_dir' }; \$k.SetValue('Path', \$new, \$kind); \$k.Close()"; then
+        echo "Added '$_win_dir' to the Windows user PATH (new PowerShell/cmd windows)."
+        return 0
+    fi
+    echo "Could not update the Windows user PATH automatically."
+    return 1
+}
+
+print_manual_path_steps() {
+    echo
+    echo "'$INSTALL_DIR' is not on your PATH."
+    echo "Add it to your shell rc file to render the card in every new terminal:"
+    echo
+    echo "  echo 'export PATH=\"$INSTALL_DIR:\$PATH\"' >> ~/.zshrc   # zsh"
+    echo "  echo 'export PATH=\"$INSTALL_DIR:\$PATH\"' >> ~/.bashrc   # bash"
+    if [ "$OS" = "windows" ]; then
         echo
-        echo "Note: '$INSTALL_DIR' is not in your current PATH."
-        echo "To run gheppo directly, add it to your PATH in $SHELL_RC:"
-        echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
+        echo "For PowerShell/cmd, add the Windows form of this directory to your"
+        echo "user PATH via System Properties > Environment Variables."
+    fi
+    echo
+    echo "You can re-run the installer to configure the PATH automatically"
+    echo "(GHEPPO_ADD_PATH=0 skips PATH setup)."
+}
+
+PATH_RC="$SHELL_RC"
+if [ "$OS" = "windows" ] && [ -z "$PATH_RC" ]; then
+    PATH_RC="${HOME}/.bashrc"
+fi
+
+PATH_DECISION=""
+case "${GHEPPO_ADD_PATH-}" in
+    1|true|True|TRUE|yes|Yes|YES) PATH_DECISION="add" ;;
+    0|false|False|FALSE|no|No|NO) PATH_DECISION="declined" ;;
+esac
+
+if [ -z "$PATH_DECISION" ] && [ -z "$PATH_RC" ] && [ "$OS" != "windows" ]; then
+    PATH_DECISION="declined"
+fi
+
+# The rc file, not the current session's PATH, decides what future shells see.
+if [ -z "$PATH_DECISION" ] && [ -n "$PATH_RC" ] && path_entry_in_rc "$PATH_RC"; then
+    PATH_DECISION="already"
+fi
+
+if [ -z "$PATH_DECISION" ]; then
+    PATH_DECISION="add"
+fi
+
+case "$PATH_DECISION" in
+    add)
+        path_configured=""
+        if [ -n "$PATH_RC" ]; then
+            if add_path_block "$PATH_RC"; then
+                path_configured=1
+            fi
+        fi
+        if [ "$OS" = "windows" ]; then
+            if add_windows_user_path; then
+                path_configured=1
+            fi
+        fi
+        if [ -z "$path_configured" ]; then
+            print_manual_path_steps
+        elif [ -n "$PATH_RC" ]; then
+            echo
+            echo "PATH configured: '$INSTALL_DIR' will be on the PATH in new terminals."
+            echo "Open a new terminal, or run 'source $PATH_RC' to update the current one."
+        fi
+        if ! install_dir_on_path; then
+            echo
+            echo "For the current terminal session, run:"
+            echo "  export PATH=\"$INSTALL_DIR:\$PATH\""
+        fi
+        ;;
+    declined)
+        print_manual_path_steps
+        ;;
+    already)
         ;;
 esac
 
@@ -292,3 +434,5 @@ echo
 echo "Run:"
 echo "  gheppo auth login"
 echo "  gheppo sync"
+echo
+echo "Open a new terminal window to see your contribution card."

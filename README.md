@@ -86,14 +86,13 @@ The script automatically:
 2. Downloads the official release archive and verifies its SHA-256 checksum from `checksums.txt`.
 3. Installs the executable to `~/.local/bin/gheppo` (or `$GHEPPO_INSTALL_DIR`).
 4. Configures shell integration in `~/.zshrc` or `~/.bashrc`.
-5. Offers to add the install directory to your `$PATH` permanently, so the card renders in every new terminal.
+5. Adds the install directory to your `$PATH` permanently (opt out with `GHEPPO_ADD_PATH=0`), so the card renders in every new terminal.
 
 #### Persistent PATH Setup
 
 A one-off `export PATH=...` only lasts for the current session. When the install
-directory is not already on your `$PATH`, the installer asks for confirmation.
-Answer `y` (or press Enter) and Gheppo appends a managed block to your shell rc
-file:
+directory is not already referenced in your shell rc file, the installer
+appends a managed block automatically:
 
 ```bash
 # >>> gheppo PATH >>>
@@ -105,7 +104,8 @@ The installer writes the resolved absolute directory. On MSYS2/Git Bash it also
 adds the directory to the Windows user PATH via a type-preserving PowerShell
 registry update, so `gheppo` resolves in PowerShell and `cmd` as well.
 
-For unattended installs (CI, scripts), skip the prompt with `GHEPPO_ADD_PATH`:
+For unattended installs (CI, scripts) or to leave your rc files untouched, use
+`GHEPPO_ADD_PATH`:
 
 ```bash
 # Add the PATH entry automatically, no prompt
@@ -115,7 +115,7 @@ GHEPPO_ADD_PATH=1 curl -fsSL https://raw.githubusercontent.com/dexisback/gheppo/
 GHEPPO_ADD_PATH=0 curl -fsSL https://raw.githubusercontent.com/dexisback/gheppo/main/scripts/install.sh | sh
 ```
 
-If you declined the automatic entry, add it manually:
+If the automatic entry was declined (`GHEPPO_ADD_PATH=0`), add it manually:
 
 ```bash
 # Current session only
@@ -139,7 +139,7 @@ The installer selects the matching Darwin binary (`arm64` or `amd64`) and uses m
 Binaries are provided for `linux_amd64` and `linux_arm64`. Credentials are stored via the Linux Secret Service API (e.g. GNOME Keyring, KWallet, KeePassXC). On headless systems without a Secret Service daemon, export `GITHUB_TOKEN` in your shell profile.
 
 #### Windows
-- **WSL / MSYS2 / Git Bash**: Run the remote curl installer directly. On MSYS2/Git Bash, confirming the PATH prompt also adds the install directory to the Windows user PATH (via PowerShell), so `gheppo` resolves in PowerShell and `cmd` too.
+- **WSL / MSYS2 / Git Bash**: Run the remote curl installer directly. On MSYS2/Git Bash, the installer also adds the install directory to the Windows user PATH (via PowerShell), so `gheppo` resolves in PowerShell and `cmd` too.
 - **Manual Binary**: Download `gheppo_<version>_windows_amd64.zip` from [GitHub Releases](https://github.com/dexisback/gheppo/releases), extract `gheppo.exe` into a directory on your `%PATH%` (or add the folder to your user `%PATH%` via System Properties → Environment Variables). Credentials are stored in Windows Credential Manager.
 
 #### Custom Installer Options
@@ -149,9 +149,9 @@ Override release version or installation target directory via environment variab
 GHEPPO_VERSION=v0.1.0 GHEPPO_INSTALL_DIR=/usr/local/bin GHEPPO_ADD_PATH=1 curl -fsSL https://raw.githubusercontent.com/dexisback/gheppo/main/scripts/install.sh | sh
 ```
 
-`GHEPPO_ADD_PATH=1` adds the install directory to your `$PATH` permanently
-without prompting; `GHEPPO_ADD_PATH=0` leaves your `$PATH` untouched. When
-unset, the installer asks for confirmation on an attached terminal.
+`GHEPPO_ADD_PATH=1` (or unset) adds the install directory to your `$PATH`
+permanently; `GHEPPO_ADD_PATH=0` leaves your `$PATH` untouched and prints the
+manual steps instead.
 
 #### Build from Source
 Requires Go 1.26 or newer:
@@ -268,7 +268,7 @@ Managed blocks are delimited by:
 # <<< gheppo <<<
 ```
 
-When you confirm the PATH prompt during installation, a second
+When the installer configures your PATH, a second
 `# >>> gheppo PATH >>>` block is appended with a persistent PATH entry.
 `gheppo uninstall` removes both blocks.
 

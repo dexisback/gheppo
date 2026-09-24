@@ -69,21 +69,86 @@ TMP_DIR="$(mktemp -d 2>/dev/null || mktemp -d -t 'gheppo')"
 cleanup() {
     rm -rf "$TMP_DIR"
 }
-trap cleanup EXIT INT TERM HUP
+# EXIT does the cleanup. The signal traps must *exit*: a trap that only runs
+# cleanup lets a POSIX shell resume the script after Ctrl-C, which makes an
+# interrupted install look stuck instead of terminating.
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
 
-# 5. Download helper (curl / wget)
+# 5. Download helper (curl / wget) with timeouts and retries
+#
+# A bare `curl -fsSL` has no connect/stall timeout and no retries: a stalled
+# connection to the GitHub release CDN hangs forever, and one transient TLS
+# or network blip (which macOS' LibreSSL-based system curl hits occasionally
+# against release-assets.githubusercontent.com) fails the whole install.
+DOWNLOAD_RETRIES="${GHEPPO_DOWNLOAD_RETRIES:-3}"
+case "$DOWNLOAD_RETRIES" in
+    ''|*[!0-9]*) DOWNLOAD_RETRIES=3 ;;
+esac
+
+if command -v curl >/dev/null 2>&1; then
+    DL_TOOL="curl"
+elif command -v wget >/dev/null 2>&1; then
+    DL_TOOL="wget"
+else
+    DL_TOOL=""
+fi
+
+download_once() {
+    _url="$1"
+    _dest="$2"
+    case "$DL_TOOL" in
+        curl)
+            # --connect-timeout bounds TCP/TLS setup; --speed-limit/--speed-time
+            # abort a transfer that stalls below 1 KiB/s for 30s instead of
+            # hanging indefinitely. </dev/null keeps the tool from eating the
+            # rest of the script when installed via `curl ... | sh`.
+            curl -fsSL \
+                --connect-timeout 15 \
+                --speed-limit 1024 --speed-time 30 \
+                "$_url" -o "$_dest" </dev/null
+            ;;
+        wget)
+            wget -q --timeout=20 --tries=1 -O "$_dest" "$_url" </dev/null
+            ;;
+        *)
+            echo "Error: Neither 'curl' nor 'wget' was found on your system." >&2
+            echo "Please install curl or wget to continue." >&2
+            exit 1
+            ;;
+    esac
+}
+
 download_file() {
     _url="$1"
     _dest="$2"
-    if command -v curl >/dev/null 2>&1; then
-        curl -fsSL "$_url" -o "$_dest"
-    elif command -v wget >/dev/null 2>&1; then
-        wget -qO "$_dest" "$_url"
-    else
-        echo "Error: Neither 'curl' nor 'wget' was found on your system." >&2
-        echo "Please install curl or wget to continue." >&2
-        exit 1
-    fi
+    _attempt=1
+    _rc=1
+    while [ "$_attempt" -le "$DOWNLOAD_RETRIES" ]; do
+        if [ "$_attempt" -gt 1 ]; then
+            echo "  Retrying download (attempt $_attempt of $DOWNLOAD_RETRIES)..." >&2
+            sleep 2
+        fi
+        _rc=0
+        download_once "$_url" "$_dest" || _rc=$?
+        if [ "$_rc" -eq 0 ] && [ -s "$_dest" ]; then
+            return 0
+        fi
+        rm -f "$_dest" >/dev/null 2>&1 || true
+        echo "  Download failed (exit code $_rc): $_url" >&2
+        _attempt=$((_attempt + 1))
+    done
+    return 1
+}
+
+download_failure_hint() {
+    echo >&2
+    echo "This is usually a transient network problem or a restrictive network" >&2
+    echo "(DNS, proxy, or firewall blocking the GitHub release CDN)." >&2
+    echo "Try again, or download the file manually from:" >&2
+    echo "  https://github.com/${REPO}/releases/tag/${TAG}" >&2
 }
 
 echo "Downloading Gheppo ${TAG} (${OS}/${ARCH})..."
@@ -91,14 +156,16 @@ ARCHIVE_FILE="${TMP_DIR}/${ASSET_NAME}"
 CHECKSUMS_FILE="${TMP_DIR}/checksums.txt"
 
 if ! download_file "$ARCHIVE_URL" "$ARCHIVE_FILE"; then
-    echo "Error: Failed to download release archive from:" >&2
+    echo "Error: Failed to download release archive after $DOWNLOAD_RETRIES attempts:" >&2
     echo "  $ARCHIVE_URL" >&2
+    download_failure_hint
     exit 1
 fi
 
 if ! download_file "$CHECKSUMS_URL" "$CHECKSUMS_FILE"; then
-    echo "Error: Failed to download checksums from:" >&2
+    echo "Error: Failed to download checksums after $DOWNLOAD_RETRIES attempts:" >&2
     echo "  $CHECKSUMS_URL" >&2
+    download_failure_hint
     exit 1
 fi
 
@@ -110,26 +177,30 @@ if [ -z "$EXPECTED_SUM" ]; then
     exit 1
 fi
 
+# Ensure the expected sum is exactly 64 hex characters
 case "$EXPECTED_SUM" in
-    *[!0-9a-fA-F]*|???????????????????????????????????????????????????????????????)
-        # Ensure it is exactly 64 hex characters (not 63 or fewer, and only hex digits)
-        if [ "${#EXPECTED_SUM}" -ne 64 ]; then
-            echo "Error: Invalid checksum format in checksums.txt: '$EXPECTED_SUM'." >&2
-            exit 1
-        fi
-        ;;
-    *)
-        if [ "${#EXPECTED_SUM}" -ne 64 ]; then
-            echo "Error: Invalid checksum format in checksums.txt: '$EXPECTED_SUM'." >&2
-            exit 1
-        fi
-        ;;
+    *[!0-9a-fA-F]*) EXPECTED_SUM_VALID=0 ;;
+    *) EXPECTED_SUM_VALID=1 ;;
 esac
+if [ "$EXPECTED_SUM_VALID" -eq 0 ] || [ "${#EXPECTED_SUM}" -ne 64 ]; then
+    echo "Error: Invalid checksum format in checksums.txt: '$EXPECTED_SUM'." >&2
+    exit 1
+fi
+
+find_powershell() {
+    command -v powershell.exe 2>/dev/null || command -v pwsh 2>/dev/null || true
+}
+
+PS_EXE="$(find_powershell)"
 
 if command -v sha256sum >/dev/null 2>&1; then
     ACTUAL_SUM="$(sha256sum "$ARCHIVE_FILE" | awk '{print $1}')"
 elif command -v shasum >/dev/null 2>&1; then
     ACTUAL_SUM="$(shasum -a 256 "$ARCHIVE_FILE" | awk '{print $1}')"
+elif [ -n "$PS_EXE" ]; then
+    # Minimal Git Bash environments without sha256sum/shasum: use PowerShell.
+    _win_archive="$(cygpath -w "$ARCHIVE_FILE" 2>/dev/null || echo "$ARCHIVE_FILE")"
+    ACTUAL_SUM="$("$PS_EXE" -NoProfile -Command "(Get-FileHash -LiteralPath '$_win_archive' -Algorithm SHA256).Hash.ToLower()" </dev/null | tr -d '\r\n')"
 else
     echo "Error: Checksum verification tool not found (requires 'sha256sum' or 'shasum -a 256')." >&2
     echo "Cannot verify release integrity. Failing closed." >&2
@@ -157,13 +228,33 @@ case "$EXT" in
         fi
         ;;
     zip)
+        # Git for Windows ships no `unzip`, so fall back through the options
+        # that exist on a stock Windows 10+ machine before giving up.
+        _unzipped=0
         if command -v unzip >/dev/null 2>&1; then
-            if ! unzip -q -o "$ARCHIVE_FILE" -d "$EXTRACT_DIR"; then
-                echo "Error: Failed to extract zip archive." >&2
-                exit 1
+            if unzip -q -o "$ARCHIVE_FILE" -d "$EXTRACT_DIR"; then
+                _unzipped=1
             fi
-        else
-            echo "Error: 'unzip' command is required to extract the Windows archive." >&2
+        fi
+        # Windows 10+ includes bsdtar (System32\tar.exe), which extracts zips.
+        _win_tar="${SYSTEMROOT:-/c/Windows}/System32/tar.exe"
+        if [ "$_unzipped" -eq 0 ] && [ -x "$_win_tar" ]; then
+            _win_archive="$(cygpath -w "$ARCHIVE_FILE" 2>/dev/null || echo "$ARCHIVE_FILE")"
+            _win_extract="$(cygpath -w "$EXTRACT_DIR" 2>/dev/null || echo "$EXTRACT_DIR")"
+            if "$_win_tar" -xf "$_win_archive" -C "$_win_extract" </dev/null; then
+                _unzipped=1
+            fi
+        fi
+        # Last resort: PowerShell's Expand-Archive (any modern Windows).
+        if [ "$_unzipped" -eq 0 ] && [ -n "$PS_EXE" ]; then
+            _win_archive="$(cygpath -w "$ARCHIVE_FILE" 2>/dev/null || echo "$ARCHIVE_FILE")"
+            _win_extract="$(cygpath -w "$EXTRACT_DIR" 2>/dev/null || echo "$EXTRACT_DIR")"
+            if "$PS_EXE" -NoProfile -Command "Expand-Archive -LiteralPath '$_win_archive' -DestinationPath '$_win_extract' -Force" </dev/null; then
+                _unzipped=1
+            fi
+        fi
+        if [ "$_unzipped" -ne 1 ]; then
+            echo "Error: Failed to extract zip archive (tried unzip, System32 tar.exe, and PowerShell Expand-Archive)." >&2
             exit 1
         fi
         ;;
@@ -341,7 +432,7 @@ add_windows_user_path() {
         echo "Skipping Windows user PATH update: could not resolve the Windows form of '$INSTALL_DIR'."
         return 1
     fi
-    _ps="$(command -v powershell.exe 2>/dev/null || command -v pwsh 2>/dev/null || true)"
+    _ps="$(find_powershell)"
     if [ -z "$_ps" ]; then
         echo "Skipping Windows user PATH update: PowerShell not found."
         return 1

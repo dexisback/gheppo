@@ -12,6 +12,12 @@ builds:
     binary: gheppo
     env:
       - CGO_ENABLED=0
+    # Default goreleaser ldflags target main.version, which does not exist in
+    # this repo -- the version var lives in package cmd, so inject it there or
+    # every release reports the hardcoded dev version.
+    ldflags:
+      - -s -w
+      - -X github.com/dexisback/gheppo/cmd.version={{.Version}}
     goos:
       - linux
       - darwin

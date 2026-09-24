@@ -65,7 +65,7 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("locating Gheppo executable: %w", err)
 	}
 
-	if err := os.Remove(executable); err != nil && !os.IsNotExist(err) {
+	if err := removeExecutable(executable); err != nil {
 		return fmt.Errorf("removing Gheppo executable: %w", err)
 	}
 
@@ -79,7 +79,19 @@ func shellRCPath() (string, error) {
 		return "", fmt.Errorf("locating home directory: %w", err)
 	}
 
-	switch filepath.Base(os.Getenv("SHELL")) {
+	// Git Bash / MSYS2 report the shell with a Windows-style SHELL value
+	// (e.g. C:\Program Files\Git\usr\bin\bash.exe), so the base name has to
+	// drop the .exe suffix (any case) and both path separators must be
+	// accepted before matching.
+	shell := os.Getenv("SHELL")
+	if i := strings.LastIndexAny(shell, `/\`); i >= 0 {
+		shell = shell[i+1:]
+	}
+	if ext := filepath.Ext(shell); strings.EqualFold(ext, ".exe") {
+		shell = strings.TrimSuffix(shell, ext)
+	}
+
+	switch strings.ToLower(shell) {
 	case "zsh":
 		return filepath.Join(home, ".zshrc"), nil
 	case "bash":

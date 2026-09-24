@@ -240,6 +240,48 @@ export PATH="/home/u/.local/bin:$PATH"
 	}
 }
 
+func TestShellRCPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	cases := []struct {
+		name  string
+		shell string
+		want  string
+		err   bool
+	}{
+		{name: "unix zsh", shell: "/bin/zsh", want: filepath.Join(home, ".zshrc")},
+		{name: "unix bash", shell: "/usr/bin/bash", want: filepath.Join(home, ".bashrc")},
+		{name: "git bash windows path", shell: `C:\Program Files\Git\usr\bin\bash.exe`, want: filepath.Join(home, ".bashrc")},
+		{name: "zsh on windows", shell: `C:\Program Files\zsh\bin\zsh.exe`, want: filepath.Join(home, ".zshrc")},
+		{name: "slash-separated exe", shell: `C:/Program Files/Git/usr/bin/bash.exe`, want: filepath.Join(home, ".bashrc")},
+		{name: "bare bash.exe", shell: `bash.exe`, want: filepath.Join(home, ".bashrc")},
+		{name: "unsupported fish", shell: "/usr/bin/fish", err: true},
+		{name: "unsupported powershell", shell: `C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe`, err: true},
+		{name: "empty shell", shell: "", err: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("SHELL", tc.shell)
+			got, err := shellRCPath()
+			if tc.err {
+				if err == nil {
+					t.Fatalf("shellRCPath(%q) error = nil, want error", tc.shell)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("shellRCPath(%q) error = %v", tc.shell, err)
+			}
+			if got != tc.want {
+				t.Fatalf("shellRCPath(%q) = %q, want %q", tc.shell, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestRemovePathEntry(t *testing.T) {
 	cases := []struct {
 		name      string

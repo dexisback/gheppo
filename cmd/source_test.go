@@ -67,6 +67,10 @@ func TestSourceCommandSetGitHub(t *testing.T) {
 }
 
 func TestSourceCommandSetLeetCode(t *testing.T) {
+	// Isolate the cache directory: this test syncs and saves a summary, and
+	// without isolation it would overwrite the real user cache.
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
 	tempDir := t.TempDir()
 	restoreCfg := config.SetConfigDirForTesting(func() (string, error) {
 		return tempDir, nil
@@ -147,6 +151,10 @@ func TestSourceCommandSetInvalid(t *testing.T) {
 }
 
 func TestSourceSwitchingPreservesData(t *testing.T) {
+	// Isolate the cache directory: this test saves fixture summaries for both
+	// sources, and without isolation it would overwrite the real user cache.
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
 	tempDir := t.TempDir()
 	restore := config.SetConfigDirForTesting(func() (string, error) {
 		return tempDir, nil

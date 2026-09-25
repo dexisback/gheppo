@@ -199,10 +199,16 @@ func TestGridFullCardElements(t *testing.T) {
 		t.Errorf("output missing @dexisback: %q", output)
 	}
 
-	// 5. Verify NO weekday labels (Sun, Mon, Tue, etc.)
-	for _, day := range []string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"} {
+	// 5. Weekday labels follow GitHub's graph: only Mon / Wed / Fri are
+	// shown; the other weekdays remain unlabeled.
+	for _, day := range []string{"Sun", "Tue", "Thu", "Sat"} {
 		if strings.Contains(output, day) {
 			t.Errorf("output contains weekday label %q (must NOT have weekday labels): %q", day, output)
+		}
+	}
+	for _, day := range []string{"Mon", "Wed", "Fri"} {
+		if !strings.Contains(output, day) {
+			t.Errorf("output missing weekday label %q: %q", day, output)
 		}
 	}
 

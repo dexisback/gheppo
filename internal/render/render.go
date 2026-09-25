@@ -243,8 +243,24 @@ func ComposeWithState(
 	if layout.LeftMargin > 0 {
 		marginStr := strings.Repeat(" ", layout.LeftMargin)
 		lines := strings.Split(joined, "\n")
+
+		// GitHub-style weekday labels (Mon / Wed / Fri) sit at the right end
+		// of the left margin, flush against the graph's first column. Card
+		// rows 10/12/14 = the Monday/Wednesday/Friday graph rows. Labels
+		// only render when the margin is wide enough (>= 4), keeping
+		// narrow layouts clutter-free.
+		weekdayLabels := map[int]string{10: "Mon", 12: "Wed", 14: "Fri"}
+
 		for i := range lines {
-			lines[i] = marginStr + lines[i]
+			pad := marginStr
+			if label, ok := weekdayLabels[i]; ok && layout.LeftMargin >= 4 {
+				if theme.Mode == ColorASCII {
+					pad = strings.Repeat(" ", layout.LeftMargin-4) + label + " "
+				} else {
+					pad = strings.Repeat(" ", layout.LeftMargin-4) + theme.Secondary + label + theme.Reset + " "
+				}
+			}
+			lines[i] = pad + lines[i]
 		}
 		joined = strings.Join(lines, "\n")
 	}

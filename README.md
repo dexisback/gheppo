@@ -69,7 +69,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for engineering design details.
 
 ### Remote Installer (macOS, Linux & Windows)
 
-> **Latest release:** [`v0.1.1`](https://github.com/dexisback/gheppo/releases/tag/v0.1.1) — the installer below installs this version by default.
+> **Latest release:** [`v0.2.0`](https://github.com/dexisback/gheppo/releases/tag/v0.2.0) — the installer below installs this version by default.
 
 Install the release binary:
 
@@ -176,7 +176,7 @@ Credentials are stored in Windows Credential Manager.
 
 #### Windows — manual (PowerShell / cmd)
 
-1. Download `gheppo_0.1.1_windows_amd64.zip` (or `gheppo_0.1.1_windows_arm64.zip`) from [GitHub Releases](https://github.com/dexisback/gheppo/releases).
+1. Download `gheppo_0.2.0_windows_amd64.zip` (or `gheppo_0.2.0_windows_arm64.zip`) from [GitHub Releases](https://github.com/dexisback/gheppo/releases).
 2. Extract `gheppo.exe` into a folder on your `%PATH%` (or add the folder via System Properties → Environment Variables).
 3. Open a **new** PowerShell/cmd window, then run `gheppo auth login` and `gheppo sync`.
 
@@ -184,7 +184,7 @@ Credentials are stored in Windows Credential Manager.
 Override release version or installation target directory via environment variables:
 
 ```bash
-GHEPPO_VERSION=v0.1.1 GHEPPO_INSTALL_DIR=/usr/local/bin GHEPPO_ADD_PATH=1 curl -fsSL https://raw.githubusercontent.com/dexisback/gheppo/main/scripts/install.sh | sh
+GHEPPO_VERSION=v0.2.0 GHEPPO_INSTALL_DIR=/usr/local/bin GHEPPO_ADD_PATH=1 curl -fsSL https://raw.githubusercontent.com/dexisback/gheppo/main/scripts/install.sh | sh
 ```
 
 `GHEPPO_ADD_PATH=1` (or unset) adds the install directory to your `$PATH`

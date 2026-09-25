@@ -185,9 +185,11 @@ func TestRenderContributionGraphASCII(t *testing.T) {
 		t.Fatalf("expected 7 weekday rows, got %d", len(rows))
 	}
 
-	// First row (Sunday, d=0) should be empty padding cells "      " (3 weeks * 2 chars = 6 chars)
-	if rows[0] != "      " {
-		t.Errorf("row[0] = %q, want 6 spaces", rows[0])
+	// First row (Sunday, d=0) is padding: matching GitHub's graph it
+	// renders as visible no-contribution cells ("·" glyph per week).
+	// 3 weeks * 2 chars = 6 visible characters.
+	if rows[0] != "· · · " {
+		t.Errorf("row[0] = %q, want no-contribution cells (\"· · · \")", rows[0])
 	}
 
 	// Second row (Monday, d=1, bucket=1) in ASCII should have glyphs

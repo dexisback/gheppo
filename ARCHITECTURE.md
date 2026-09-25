@@ -165,6 +165,7 @@ Session C ──► IsStale? (Yes) ──► TryAcquireRefreshLock ──► Bus
 - GitHub returns contribution weeks chronologically.
 - `buildGrid` normalizes the first week by determining the weekday of `Days[0]`.
 - Empty cells (`Empty: true`) pad the first column so days match their true Sunday–Saturday weekday row.
+- Rendering keeps every column a complete 7-box rectangle, matching GitHub's own graph: padding cells and future days of the current week render as "no contribution" cells instead of blanks.
 
 ### Contribution Bucketing
 Counts are dynamically bucketed into 5 intensity tiers based on the highest contribution count (`maxCount`) in the calendar window:

@@ -120,14 +120,21 @@ func (m Model) View() string {
 		return ""
 	}
 
+	var frame string
+
 	if m.animating {
 		revealedWeeks := int(float64(m.layout.VisibleWeeks) * m.progress)
 		if revealedWeeks < 1 {
 			revealedWeeks = 1
 		}
 		stepSummary := createStepSummary(m.summary, m.layout.VisibleWeeks, revealedWeeks)
-		return RenderWithThemeAndState(stepSummary, m.layout, m.theme, m.wordmarkState)
+		frame = RenderWithThemeAndState(stepSummary, m.layout, m.theme, m.wordmarkState)
+	} else {
+		frame = RenderWithThemeAndState(m.summary, m.layout, m.theme, WordmarkState{Progress: 1.0})
 	}
 
-	return RenderWithThemeAndState(m.summary, m.layout, m.theme, WordmarkState{Progress: 1.0})
+	// Terminate the frame with a newline: Bubble Tea's exit sequence erases the
+	// line the cursor sits on, so without a trailing blank line the shell prompt
+	// redraw would wipe the card's bottom row (the Saturday graph row).
+	return frame + "\n"
 }

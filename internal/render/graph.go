@@ -12,7 +12,6 @@ type GraphConfig struct {
 	CellWidth    int    // Number of characters per cell (default 1)
 	CellGap      int    // Space between cells in columns (default 1)
 	BlockGlyph   string // Character used for colored cells (default "■")
-	EmptyGlyph   string // Character string used for empty cells (default "  ")
 	DaysInWeek   int    // Number of days in a week / rows (default 7)
 	MonthSpacing int    // Minimum character space between month labels (default 5)
 }
@@ -23,7 +22,6 @@ func DefaultGraphConfig() GraphConfig {
 		CellWidth:    1,
 		CellGap:      1,
 		BlockGlyph:   "■",
-		EmptyGlyph:   "  ",
 		DaysInWeek:   7,
 		MonthSpacing: 5,
 	}
@@ -56,12 +54,14 @@ func NewContributionGraph(grid [][]stats.Cell, visibleWeeks int) ContributionGra
 }
 
 // RenderContributionGraph renders the contribution grid rows (7 weekday rows) as formatted strings.
+//
+// Matching GitHub's own graph, every weekday column is a complete 7-box
+// rectangle: days that fall outside the calendar (leading padding before
+// the first real day and future days of the current week) render as
+// "no contribution" cells instead of being left blank.
 func RenderContributionGraph(graph ContributionGraph, theme Theme, cfg GraphConfig) []string {
 	if cfg.DaysInWeek <= 0 {
 		cfg.DaysInWeek = 7
-	}
-	if cfg.EmptyGlyph == "" {
-		cfg.EmptyGlyph = "  "
 	}
 
 	rows := make([]string, cfg.DaysInWeek)
@@ -69,13 +69,15 @@ func RenderContributionGraph(graph ContributionGraph, theme Theme, cfg GraphConf
 		var row strings.Builder
 		for _, week := range graph.Weeks {
 			if weekday >= len(week) {
-				row.WriteString(cfg.EmptyGlyph)
+				row.WriteString(theme.CellColor(0))
+				row.WriteByte(' ')
 				continue
 			}
 
 			cell := week[weekday]
 			if cell.Empty {
-				row.WriteString(cfg.EmptyGlyph)
+				row.WriteString(theme.CellColor(0))
+				row.WriteByte(' ')
 				continue
 			}
 
